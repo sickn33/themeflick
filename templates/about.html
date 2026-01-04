@@ -3,27 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>About MovieMatch - Advanced Movie Recommendations</title>
+    <title>About MovieBridge - Advanced Movie Recommendations</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/navbar.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
     <nav class="navbar">
-        <div class="nav-brand">
-            <i class="fas fa-film"></i>
-            <h1>MovieMatch</h1>
-        </div>
-        <div class="nav-links">
-            <a href="{{ url_for('index') }}">Home</a>
-            <a href="{{ url_for('about') }}" class="active">About</a>
-            <a href="https://github.com/yourusername/moviematch" target="_blank">GitHub</a>
+        <div class="nav-content">
+            <a href="/" class="logo">
+                <i class="fas fa-film"></i>
+                MovieBridge
+            </a>
+            <button class="mobile-menu-btn">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="nav-links">
+                <a href="{{ url_for('index') }}">Home</a>
+                <a href="{{ url_for('favorites') }}">Favorites</a>
+                <a href="{{ url_for('about') }}" class="active">About</a>
+                <a href="https://github.com/yourusername/moviematch" target="_blank">
+                    <i class="fab fa-github"></i>
+                    GitHub
+                </a>
+            </div>
         </div>
     </nav>
 
     <main class="about-container">
         <section class="hero-section">
-            <h1>About MovieMatch</h1>
+            <h1>About MovieBridge</h1>
+            <p class="slogan">Bridging Your Favorite Stories to New Discoveries.</p>
             <p class="subtitle">Discover Your Next Favorite Movie Through Advanced Thematic Recommendations</p>
         </section>
 
@@ -33,12 +44,15 @@
                 <h2>Intelligent Recommendations</h2>
                 <p>Our sophisticated algorithm analyzes multiple aspects of movies to provide highly accurate recommendations based on:</p>
                 <ul>
-                    <li>Genre matching (30%)</li>
-                    <li>Thematic elements and keywords (25%)</li>
-                    <li>Cast similarities (15%)</li>
-                    <li>Director's style (15%)</li>
+                    <li>Genre matching (28%)</li>
+                    <li>Thematic elements and keywords (24%)</li>
+                    <li>Cast similarities with role weighting (15%)</li>
                     <li>Release year proximity (10%)</li>
+                    <li>Director's style (8%)</li>
+                    <li>Runtime similarity (5%)</li>
                     <li>Rating patterns (5%)</li>
+                    <li>Original language (3%)</li>
+                    <li>Production company (2%)</li>
                 </ul>
             </div>
 
@@ -105,7 +119,7 @@
     <footer class="footer">
         <div class="footer-content">
             <div class="footer-section">
-                <h3>MovieMatch</h3>
+                <h3>MovieBridge</h3>
                 <p>Advanced movie recommendations powered by intelligent algorithms and comprehensive movie analysis.</p>
             </div>
             <div class="footer-section">
@@ -125,7 +139,7 @@
             </div>
         </div>
         <div class="footer-bottom">
-            <p>&copy; 2024 MovieMatch. All rights reserved.</p>
+            <p>&copy; 2024 MovieBridge. All rights reserved.</p>
         </div>
     </footer>
 </body>

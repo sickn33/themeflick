@@ -44,5 +44,6 @@ Thumbs.db
 instance/*.db
 .env
 *.log
+movies.db
 build/
 tmp/

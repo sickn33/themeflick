@@ -16,10 +16,6 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///movies.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['FREEZER_RELATIVE_URLS'] = True
 
-# Aggiungi questa configurazione per GitHub Pages
-if os.environ.get('GITHUB_PAGES'):
-    app.config['APPLICATION_ROOT'] = '/MovieMatch'
-
 TMDB_API_KEY = os.getenv('VITE_TMDB_API_KEY')
 TMDB_ACCESS_TOKEN = os.getenv('VITE_TMDB_ACCESS_TOKEN')
 TMDB_BASE_URL = "https://api.themoviedb.org/3"
@@ -28,6 +24,13 @@ db.init_app(app)
 
 def fetch_tmdb_data(url, headers, params=None):
     try:
+        # Fallback: se non abbiamo Bearer token, usiamo api_key (se disponibile)
+        if params is None:
+            params = {}
+        if not headers.get('Authorization') and TMDB_API_KEY:
+            params = dict(params)
+            params.setdefault('api_key', TMDB_API_KEY)
+
         response = requests.get(url, headers=headers, params=params)
         response.raise_for_status()
         return response.json()
@@ -50,79 +53,154 @@ def get_director_movies(director_id, headers):
     person_url = f"{TMDB_BASE_URL}/person/{director_id}/movie_credits"
     return fetch_tmdb_data(person_url, headers)
 
-def calculate_similarity(movie1, movie2, weights):
-    base_score = 0
-    bonus_score = 0
-
-    # Genre similarity (30%)
-    if 'genres' in movie1 and 'genres' in movie2:
-        genres1 = set(g['id'] for g in movie1['genres'])
-        genres2 = set(g['id'] for g in movie2['genres'])
-        if genres1 and genres2:
-            genre_similarity = len(genres1 & genres2) / len(genres1 | genres2)
-            base_score += weights['genre'] * (0.5 + 0.5 * genre_similarity) * 100
-
-    # Keywords similarity (25%)
-    keywords1 = set(k['id'] for k in movie1.get('keywords', {}).get('keywords', []))
-    keywords2 = set(k['id'] for k in movie2.get('keywords', {}).get('keywords', []))
-    if keywords1 and keywords2:
-        keyword_similarity = len(keywords1 & keywords2) / len(keywords1 | keywords2)
-        base_score += weights['keywords'] * (0.4 + 0.6 * keyword_similarity) * 100
-
-    # Cast similarity (15%)
-    cast1 = set(c['id'] for c in movie1['credits']['cast'][:5])
-    cast2 = set(c['id'] for c in movie2['credits']['cast'][:5])
-    if cast1 and cast2:
-        cast_similarity = len(cast1 & cast2) / len(cast1 | cast2)
-        base_score += weights['cast'] * (0.3 + 0.7 * cast_similarity) * 100
-
-    # Director similarity (15%)
-    director1 = next((c['id'] for c in movie1['credits']['crew'] if c['job'] == 'Director'), None)
-    director2 = next((c['id'] for c in movie2['credits']['crew'] if c['job'] == 'Director'), None)
-    if director1 and director2:
-        director_similarity = 1 if director1 == director2 else 0
-        base_score += weights['director'] * director_similarity * 100
-        if director_similarity == 1:
-            bonus_score += 10  # Bonus for same director
-
-    # Release year similarity (10%)
-    year1 = int(movie1['release_date'][:4]) if movie1.get('release_date') else None
-    year2 = int(movie2['release_date'][:4]) if movie2.get('release_date') else None
-    if year1 is not None and year2 is not None:
-        year_diff = abs(year1 - year2)
-        year_similarity = max(0, 10 - year_diff) / 10
-        base_score += weights['year'] * (0.5 + 0.5 * year_similarity) * 100
-
-    # Rating similarity (5%)
-    rating1 = movie1.get('vote_average')
-    rating2 = movie2.get('vote_average')
-    if rating1 is not None and rating2 is not None:
-        rating_diff = abs(rating1 - rating2)
-        rating_similarity = max(0, 10 - rating_diff) / 10
-        base_score += weights['rating'] * (0.4 + 0.6 * rating_similarity) * 100
-
-    # Add source bonuses (normalized to contribute max 20 points)
-    if movie2.get('source_bonus'):
-        bonus_score += min(20, movie2['source_bonus'])
-
-    # Add recency bonus (normalized to contribute max 10 points)
-    from datetime import datetime
-    current_year = datetime.now().year
-    movie2_year = int(movie2['release_date'][:4]) if movie2.get('release_date') else current_year
-    years_from_now = current_year - movie2_year
-    recency_bonus = max(0, 10 - (years_from_now * 0.5))
-    bonus_score += min(10, recency_bonus)
-
-    # Add base similarity score (20 points)
-    base_score += 20
-
-    # Normalize final score to 0-100 range
-    # Base score is 80% of total, bonus is 20% of total
-    normalized_base = min(80, base_score * 0.8)
-    normalized_bonus = min(20, bonus_score)
+def discover_movies_by_keywords(keyword_ids, headers, limit=10):
+    """Discover popular movies that share important keywords (e.g., 'musical', 'heist')"""
+    if not keyword_ids:
+        return []
     
-    final_score = normalized_base + normalized_bonus
-    return min(100, max(0, final_score))
+    # Use top 3 most important keywords
+    keyword_str = '|'.join(str(k) for k in keyword_ids[:3])
+    discover_url = f"{TMDB_BASE_URL}/discover/movie"
+    params = {
+        "with_keywords": keyword_str,
+        "sort_by": "vote_count.desc",  # Popular movies first
+        "vote_count.gte": 500,  # Only well-known movies
+        "page": 1
+    }
+    result = fetch_tmdb_data(discover_url, headers, params)
+    if result and 'results' in result:
+        return result['results'][:limit]
+    return []
+
+def calculate_similarity(movie1, movie2, weights):
+    """
+    Clean similarity algorithm v2.0
+    Philosophy: Genre defines pool, features define rank
+    No source bonuses - pure similarity only
+    """
+    import math
+    score = 0
+    
+    # 1. GENRE SIMILARITY (30%) - with defining genre boost
+    # Defining genres that really characterize a film's identity
+    defining_genres = {
+        16,     # Animation
+        10402,  # Music/Musical
+        37,     # Western
+        27,     # Horror
+        878,    # Sci-Fi
+        14,     # Fantasy
+        10749,  # Romance
+    }
+    
+    g1 = {g['id'] for g in movie1.get('genres', [])}
+    g2 = {g['id'] for g in movie2.get('genres', [])}
+    
+    if g1 and g2:
+        shared = g1 & g2
+        union = g1 | g2
+        
+        # Base Jaccard similarity
+        base_genre_score = len(shared) / len(union) if union else 0
+        
+        # Defining genre bonus: if both share a defining genre, boost significantly
+        shared_defining = shared & defining_genres
+        if shared_defining:
+            base_genre_score = min(1.0, base_genre_score + 0.3)
+        
+        score += weights['genre'] * base_genre_score * 100
+    
+    # 2. DIRECTOR MATCH (15%)
+    dir1 = next((c['id'] for c in movie1.get('credits', {}).get('crew', []) 
+                 if c['job'] == 'Director'), None)
+    dir2 = next((c['id'] for c in movie2.get('credits', {}).get('crew', []) 
+                 if c['job'] == 'Director'), None)
+    if dir1 and dir2 and dir1 == dir2:
+        score += weights['director'] * 100
+    
+    # 3. CAST OVERLAP (15%) - top 5 billed actors
+    cast1 = {c['id'] for c in movie1.get('credits', {}).get('cast', [])[:5]}
+    cast2 = {c['id'] for c in movie2.get('credits', {}).get('cast', [])[:5]}
+    if cast1 and cast2:
+        cast_overlap = len(cast1 & cast2) / 5  # Max 5 actors
+        score += weights['cast'] * cast_overlap * 100
+    
+    # 4. KEYWORDS (15%) - with STRONG defining keyword matching
+    # Defining keywords that MUST match for thematic similarity
+    defining_keywords = {
+        4344,   # musical - CRITICAL for musicals
+        9715,   # superhero
+        3799,   # heist
+        10714,  # serial killer
+        9882,   # space
+        207317, # christmas
+        276,    # sport
+        155,    # spy
+        12990,  # singing - important for musicals
+    }
+    
+    kw1 = {k['id'] for k in movie1.get('keywords', {}).get('keywords', [])}
+    kw2 = {k['id'] for k in movie2.get('keywords', {}).get('keywords', [])}
+    
+    defining_penalty = 0
+    if kw1 and kw2:
+        shared_kw = kw1 & kw2
+        shared_count = len(shared_kw)
+        
+        # Base keyword score: 3 shared keywords = 100%
+        keyword_score = min(1.0, shared_count / 3)
+        
+        # Check for defining keywords
+        base_defining = kw1 & defining_keywords
+        candidate_defining = kw2 & defining_keywords
+        shared_defining = shared_kw & defining_keywords
+        
+        if shared_defining:
+            # BONUS: Both share a defining keyword (e.g., both are musicals)
+            score += 25  # Direct +25 points bonus
+        elif base_defining and not candidate_defining:
+            # PENALTY: Base has defining keyword but candidate doesn't
+            # E.g., Greatest Showman (musical) vs American Beauty (no musical keyword)
+            defining_penalty = -25
+        
+        score += weights['keywords'] * keyword_score * 100
+    
+    score += defining_penalty  # Apply penalty after keyword scoring
+    
+    # 5. RATING SIMILARITY (10%) - within 2 points = good match
+    r1 = movie1.get('vote_average', 0)
+    r2 = movie2.get('vote_average', 0)
+    if r1 and r2:
+        rating_diff = abs(r1 - r2)
+        rating_score = max(0, 1 - rating_diff / 4)  # 4 point diff = 0
+        score += weights['rating'] * rating_score * 100
+    
+    # 6. ERA SIMILARITY (10%) - same decade preferred
+    y1 = int(movie1['release_date'][:4]) if movie1.get('release_date') else None
+    y2 = int(movie2['release_date'][:4]) if movie2.get('release_date') else None
+    if y1 and y2:
+        decade1 = y1 // 10
+        decade2 = y2 // 10
+        if decade1 == decade2:
+            era_score = 1.0
+        elif abs(decade1 - decade2) == 1:
+            era_score = 0.6
+        else:
+            era_score = 0.3
+        score += weights['era'] * era_score * 100
+    
+    # 7. POPULARITY TIER (5%) - similar popularity level
+    pop1 = movie1.get('popularity', 0)
+    pop2 = movie2.get('popularity', 0)
+    if pop1 and pop2:
+        # Use log scale for popularity comparison
+        log_pop1 = math.log10(max(1, pop1))
+        log_pop2 = math.log10(max(1, pop2))
+        pop_diff = abs(log_pop1 - log_pop2)
+        pop_score = max(0, 1 - pop_diff / 2)
+        score += weights['popularity'] * pop_score * 100
+    
+    return min(100, max(0, score))
 
 @app.route('/')
 def index():
@@ -139,10 +217,16 @@ def search_movies():
         if not movie_title:
             return jsonify({'error': 'Movie title is required'}), 400
 
+        if not TMDB_ACCESS_TOKEN and not TMDB_API_KEY:
+            return jsonify({
+                'error': 'TMDB non configurato: imposta VITE_TMDB_ACCESS_TOKEN o VITE_TMDB_API_KEY'
+            }), 500
+
         headers = {
-            "Authorization": f"Bearer {TMDB_ACCESS_TOKEN}",
             "accept": "application/json"
         }
+        if TMDB_ACCESS_TOKEN:
+            headers["Authorization"] = f"Bearer {TMDB_ACCESS_TOKEN}"
 
         # 1. Search for the base movie
         search_url = f"{TMDB_BASE_URL}/search/movie"
@@ -153,7 +237,12 @@ def search_movies():
             "page": 1
         })
 
-        if not search_results or not search_results.get('results'):
+        if search_results is None:
+            return jsonify({
+                'error': 'Errore nel contatto con TMDB. Verifica le credenziali (token/api key).'
+            }), 502
+
+        if not search_results.get('results'):
             return jsonify({'error': 'Movie not found'}), 404
 
         base_movie = search_results['results'][0]
@@ -162,7 +251,9 @@ def search_movies():
         # 2. Get detailed information about the base movie
         base_movie_details = get_movie_details(base_movie_id, headers)
         if not base_movie_details:
-            return jsonify({'error': 'Failed to fetch movie details'}), 500
+            return jsonify({
+                'error': 'Errore nel recupero dettagli da TMDB. Verifica le credenziali (token/api key).'
+            }), 502
 
         # 3. Collect candidate movies from multiple sources
         candidate_movies = defaultdict(lambda: {'movie': None, 'sources': set()})
@@ -191,8 +282,8 @@ def search_movies():
                 ]
                 directed_movies.sort(key=lambda x: x.get('vote_average', 0), reverse=True)
                 
-                # Take only top 5 rated movies
-                for movie in directed_movies[:5]:
+                # Take only top 2 rated movies from director (reduced to avoid dominating results)
+                for movie in directed_movies[:2]:
                     candidate_movies[movie['id']]['movie'] = movie
                     candidate_movies[movie['id']]['sources'].add('director')
 
@@ -207,6 +298,16 @@ def search_movies():
             for movie in base_movie_details['recommendations']['results'][:15]:  # Increased from default
                 candidate_movies[movie['id']]['movie'] = movie
                 candidate_movies[movie['id']]['sources'].add('recommendations')
+
+        # 3.5 Add movies by shared keywords (e.g., finds other musicals, heist films)
+        # This catches thematic matches that TMDB similar/recommendations miss
+        base_keywords = base_movie_details.get('keywords', {}).get('keywords', [])
+        important_keyword_ids = [k['id'] for k in base_keywords[:5]]  # Top 5 keywords
+        keyword_movies = discover_movies_by_keywords(important_keyword_ids, headers, limit=15)
+        for movie in keyword_movies:
+            if movie['id'] != base_movie_id:
+                candidate_movies[movie['id']]['movie'] = movie
+                candidate_movies[movie['id']]['sources'].add('keyword_discovery')
 
         # 4. Get detailed information for all candidate movies
         with ThreadPoolExecutor(max_workers=10) as executor:
@@ -242,21 +343,17 @@ def search_movies():
         from datetime import datetime
         current_date = datetime.now().strftime('%Y-%m-%d')
 
+        # New clean weights - genre defines pool, features define rank
         weights = {
-            'genre': 0.32,      # Increased from 30%
-            'keywords': 0.27,   # Increased from 25%
-            'cast': 0.17,       # Increased from 15%
-            'director': 0.08,   # Decreased from 15%
-            'year': 0.11,       # Increased from 10%
-            'rating': 0.05      # Maintained at 5%
+            'genre': 0.30,      # Core identity of film (with defining genre boost)
+            'director': 0.15,   # Style/tone indicator
+            'cast': 0.15,       # Star presence matters
+            'keywords': 0.15,   # Thematic elements (reduced - TMDB keywords unreliable)
+            'rating': 0.10,     # Quality tier
+            'era': 0.10,        # Period context
+            'popularity': 0.05  # Blockbuster vs indie
         }
-
-        source_bonuses = {
-            'collection': 20,   # Same franchise bonus
-            'director': 10,     # Reduced from 15 to match new weight
-            'similar': 10,      # TMDB similar movies bonus
-            'recommendations': 5  # TMDB recommendations bonus
-        }
+        # Source bonuses removed - let pure similarity determine ranking
 
         for candidate in detailed_candidates:
             movie = candidate['details']
@@ -266,21 +363,17 @@ def search_movies():
             if movie.get('release_date') and movie['release_date'] > current_date:
                 continue
 
+            # Genre filter: require at least 1 genre overlap
+            # Exception: collection/franchise movies are always included
+            if 'collection' not in sources:
+                movie_genres = set(g['id'] for g in movie.get('genres', []))
+                base_genres = set(g['id'] for g in base_movie_details.get('genres', []))
+                if not (movie_genres & base_genres):  # No genre overlap
+                    continue  # Skip this movie - not thematically related
+
             score = calculate_similarity(base_movie_details, movie, weights)
 
-            # Add source bonuses
-            for source in sources:
-                movie['source_bonus'] = source_bonuses.get(source, 0)
-
-            # Add recency bonus (favor newer movies)
-            from datetime import datetime
-            current_year = datetime.now().year
-            movie_year = int(movie['release_date'][:4]) if movie.get('release_date') else current_year
-            years_from_now = current_year - movie_year
-            recency_bonus = max(0, 10 - (years_from_now * 0.5))  # Increased bonus points for newer movies
-            movie['recency_bonus'] = recency_bonus
-
-            if score >= 40:  # Increased threshold for better quality
+            if score >= 30:  # Balanced threshold for quality
                 processed_movies.append({
                     'id': movie['id'],
                     'title': movie['title'],
@@ -312,22 +405,46 @@ def process_reviews(reviews):
         })
     return processed
 
+@app.route('/favorites')
+def favorites():
+    return render_template('favorites.html')
+
 @app.context_processor
 def inject_year():
-    return {'year': datetime.now().year}
+    # Cache busting per asset statici (evita che il browser usi JS/CSS vecchi)
+    try:
+        main_js_path = os.path.join(app.root_path, 'static', 'js', 'main.js')
+        static_version = int(os.path.getmtime(main_js_path))
+    except Exception:
+        static_version = int(datetime.now().timestamp())
+
+    return {
+        'year': datetime.now().year,
+        'static_version': static_version
+    }
 
 @app.route('/movie/<int:movie_id>')
 def movie_details(movie_id):
     try:
+        if not TMDB_ACCESS_TOKEN and not TMDB_API_KEY:
+            return render_template(
+                'error.html',
+                message='TMDB non configurato: imposta VITE_TMDB_ACCESS_TOKEN o VITE_TMDB_API_KEY'
+            ), 500
+
         headers = {
-            "Authorization": f"Bearer {TMDB_ACCESS_TOKEN}",
             "accept": "application/json"
         }
+        if TMDB_ACCESS_TOKEN:
+            headers["Authorization"] = f"Bearer {TMDB_ACCESS_TOKEN}"
         
         # Get detailed movie information
         movie_details = get_movie_details(movie_id, headers)
         if not movie_details:
-            return render_template('error.html', message='Movie not found'), 404
+            return render_template(
+                'error.html',
+                message='Impossibile recuperare i dettagli del film da TMDB.'
+            ), 502
 
         # Process cast (limit to top 10)
         cast = movie_details.get('credits', {}).get('cast', [])[:10]
@@ -375,4 +492,4 @@ def movie_details(movie_id):
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    app.run(debug=True, port=5001)
+    app.run(debug=True, port=5002)

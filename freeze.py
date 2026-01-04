@@ -28,7 +28,7 @@ def configure_app():
     os.environ['GITHUB_PAGES'] = 'true'
     
     app.config['FREEZER_DESTINATION'] = 'build'
-    app.config['FREEZER_BASE_URL'] = 'https://sck000.github.io/MovieMatch/'
+    app.config['FREEZER_BASE_URL'] = 'https://sck000.github.io/MovieBridge/'
     app.config['FREEZER_RELATIVE_URLS'] = True
     
     return Freezer(app)

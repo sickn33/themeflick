@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Favorites - MovieBridge</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/navbar.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-content">
+            <a href="/" class="logo">
+                <i class="fas fa-film"></i>
+                MovieBridge
+            </a>
+            <button class="mobile-menu-btn">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="nav-links">
+                <a href="{{ url_for('index') }}">Home</a>
+                <a href="{{ url_for('favorites') }}" class="active">Favorites</a>
+                <a href="{{ url_for('about') }}">About</a>
+                <a href="https://github.com/yourusername/moviematch" target="_blank">
+                    <i class="fab fa-github"></i>
+                    GitHub
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <section class="hero-section">
+            <h1>My Favorite Movies</h1>
+            <p class="subtitle">Your personally curated collection of movies</p>
+        </section>
+
+        <section id="favoritesSection">
+            <div id="movieResults" class="movie-grid">
+                <!-- I film preferiti verranno caricati qui dinamicamente -->
+            </div>
+            <div id="emptyState" class="empty-state" style="display: none;">
+                <i class="fas fa-heart-broken"></i>
+                <h2>No Favorites Yet</h2>
+                <p>Start adding movies to your favorites by clicking the heart icon on any movie card!</p>
+                <a href="/" class="details-btn">
+                    <i class="fas fa-search"></i>
+                    Find Movies
+                </a>
+            </div>
+        </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='js/main.js', v=static_version) }}"></script>
+    <script src="{{ url_for('static', filename='js/favorites.js', v=static_version) }}"></script>
+</body>
+</html>

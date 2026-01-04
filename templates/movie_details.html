@@ -5,7 +5,7 @@
     <div class="movie-header">
         <div class="movie-poster">
             {% if movie.poster_path %}
-            <img src="https://image.tmdb.org/t/p/w500{{ movie.poster_path }}" alt="{{ movie.title }} poster">
+            <img src="https://image.tmdb.org/t/p/w500{{ movie.poster_path }}" alt="{{ movie.title }} poster" loading="lazy">
             {% else %}
             <div class="no-poster">
                 <i class="fas fa-film"></i>
@@ -42,7 +42,7 @@
                 {% for actor in cast %}
                 <div class="cast-card">
                     {% if actor.profile_path %}
-                    <img src="https://image.tmdb.org/t/p/w185{{ actor.profile_path }}" alt="{{ actor.name }}">
+                    <img src="https://image.tmdb.org/t/p/w185{{ actor.profile_path }}" alt="{{ actor.name }}" loading="lazy">
                     {% else %}
                     <div class="no-photo">
                         <i class="fas fa-user"></i>
@@ -84,7 +84,7 @@
                 {% for movie in collection.movies %}
                 <div class="collection-movie-card">
                     {% if movie.poster_path %}
-                    <img src="https://image.tmdb.org/t/p/w185{{ movie.poster_path }}" alt="{{ movie.title }}">
+                    <img src="https://image.tmdb.org/t/p/w185{{ movie.poster_path }}" alt="{{ movie.title }}" loading="lazy">
                     {% else %}
                     <div class="no-poster">
                         <i class="fas fa-film"></i>
