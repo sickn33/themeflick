@@ -84,7 +84,7 @@ export function HomePage() {
     if (loadingSearch || loadingRecommendationsFor) {
       return 'Searching live movie data…'
     }
-    return 'Powered by TMDB + Rust scoring engine'
+    return 'Powered by TMDB direct mode + client-side scoring'
   }, [loadingSearch, loadingRecommendationsFor])
 
   return (

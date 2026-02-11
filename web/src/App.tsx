@@ -48,7 +48,7 @@ function App() {
         </nav>
 
         <p className={`service-pill service-${serviceStatus}`}>
-          API {serviceStatus === 'checking' ? 'checking' : serviceStatus}
+          TMDB {serviceStatus === 'checking' ? 'checking' : serviceStatus}
         </p>
       </header>
 

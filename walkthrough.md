@@ -1,57 +1,59 @@
 # Themeflick Walkthrough
 
-## Stack
+## Stack (Mode 2: frontend-only)
 - Frontend: Vite + React + TypeScript (`/web`)
-- Backend: Rust + Axum (`/api`)
-- Data source: TMDB API
+- Data source: TMDB (direct browser calls)
+- Hosting: GitHub Pages
+
+No backend is required in this mode.
 
 ## Prerequisites
 - Node.js 20+
 - npm 10+
-- Rust stable (rustup)
 
-## Quick Start
-1. Configure backend env:
+## Local Run
+1. Configure frontend env:
 ```bash
-cp api/.env.example api/.env
+cp web/.env.example web/.env
 ```
-2. Add TMDB credential in `api/.env` (`TMDB_ACCESS_TOKEN` recommended).
-3. Install frontend dependencies:
+2. Add at least one TMDB credential in `web/.env`:
+```dotenv
+VITE_TMDB_API_KEY=...
+# optional:
+VITE_TMDB_ACCESS_TOKEN=...
+```
+3. Install dependencies:
 ```bash
-cd web && npm install
+cd web
+npm install
 ```
-4. Run both services:
+4. Start app:
 ```bash
 cd /Users/nicco/Projects/themeflick
 ./scripts/dev.sh
 ```
 
-- Web app: [http://localhost:5173](http://localhost:5173)
-- API: [http://localhost:3000/api/health](http://localhost:3000/api/health)
+App URL: [http://localhost:5173](http://localhost:5173)
 
-## API Contract (v1)
-- `GET /api/health`
-- `GET /api/movies/search?query=<title>`
-- `GET /api/movies/:id`
-- `GET /api/movies/:id/recommendations`
+## Deploy (GitHub Pages)
+Workflow injects:
+- `VITE_TMDB_API_KEY` from repo variable
+- `VITE_TMDB_ACCESS_TOKEN` from repo secret
 
-Errors use envelope:
-```json
-{ "error": { "code": "...", "message": "..." } }
-```
+Required repository settings:
+- Variable: `VITE_TMDB_API_KEY`
+- Secret (optional): `VITE_TMDB_ACCESS_TOKEN`
 
 ## Verification
 From project root:
 ```bash
 ./scripts/verify.sh
 ```
-This runs:
-- `cargo fmt -- --check`
-- `cargo test`
+Runs:
 - `npm run lint`
 - `npm run build`
 
 ## Notes
-- Favorites are stored in browser localStorage (`themeflick:favorites:v1`).
-- In local development, Vite proxies `/api` to `http://localhost:3000`.
-- For production frontend deployments, set `VITE_API_BASE_URL` in `web/.env`.
+- Favorites are saved in localStorage key `themeflick:favorites:v1`.
+- On GitHub Pages the app is served under `/themeflick/`; Vite base path and Router basename are configured accordingly.
+- In frontend-only mode TMDB credentials are visible client-side by design.

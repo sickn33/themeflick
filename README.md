@@ -1,10 +1,10 @@
 # Themeflick
 
-Themeflick is a movie discovery app rebuilt from scratch with **Vite + React + Rust**.
+Themeflick is a movie discovery app rebuilt as **Vite + React frontend-only**.
 
 ## Project Structure
 - `web/` - React frontend (Vite + TypeScript)
-- `api/` - Rust backend (Axum)
+- `api/` - legacy/optional backend code (not required for production Pages mode)
 - `scripts/` - local developer scripts
 - `walkthrough.md` - setup and usage walkthrough
 
