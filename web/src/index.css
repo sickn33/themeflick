@@ -1,0 +1,57 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&display=swap');
+
+:root {
+  --canvas-1: #09121d;
+  --canvas-2: #162c3b;
+  --ink: #f4f4ef;
+  --ink-muted: #adbac6;
+  --line: #26445c;
+  --accent: #4fd1c5;
+  --accent-2: #f59e0b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 15% 20%, rgb(79 209 197 / 22%), transparent 32%),
+    radial-gradient(circle at 88% 0%, rgb(245 158 11 / 17%), transparent 28%),
+    linear-gradient(140deg, var(--canvas-1), var(--canvas-2));
+  font-family: Manrope, sans-serif;
+}
+
+h1,
+h2,
+h3,
+.eyebrow,
+.button,
+.nav-links a {
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

@@ -47,3 +47,11 @@ instance/*.db
 movies.db
 build/
 tmp/
+
+# Node / frontend
+node_modules/
+web/node_modules/
+web/dist/
+
+# Rust
+api/target/
