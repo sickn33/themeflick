@@ -12,6 +12,30 @@ type RecommendationState = {
   items: RecommendationMovie[]
 }
 
+function normalizeTitle(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+}
+
+function pickBestSearchMatch(query: string, results: SearchMovie[]): SearchMovie {
+  const queryNormalized = normalizeTitle(query)
+
+  const exact = results.find((movie) => normalizeTitle(movie.title) === queryNormalized)
+  if (exact) {
+    return exact
+  }
+
+  const startsWith = results.find((movie) => normalizeTitle(movie.title).startsWith(queryNormalized))
+  if (startsWith) {
+    return startsWith
+  }
+
+  return results[0]
+}
+
 function toFavorite(movie: SearchMovie | RecommendationMovie): FavoriteMovie {
   return {
     id: movie.id,
@@ -24,14 +48,11 @@ function toFavorite(movie: SearchMovie | RecommendationMovie): FavoriteMovie {
 
 export function HomePage() {
   const [query, setQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<SearchMovie[]>([])
+  const [selectedMovie, setSelectedMovie] = useState<SearchMovie | null>(null)
   const [recommendations, setRecommendations] = useState<RecommendationState | null>(null)
-  const [loadingSearch, setLoadingSearch] = useState(false)
-  const [loadingRecommendationsFor, setLoadingRecommendationsFor] = useState<number | null>(null)
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [favoritesVersion, setFavoritesVersion] = useState(0)
-
-  const hasSearchResults = searchResults.length > 0
 
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -40,38 +61,34 @@ export function HomePage() {
       return
     }
 
-    setLoadingSearch(true)
+    setLoadingRecommendations(true)
     setError(null)
     setRecommendations(null)
+    setSelectedMovie(null)
 
     try {
       const results = await searchMovies(trimmed)
-      setSearchResults(results)
       if (results.length === 0) {
         setError('No movies found for this title.')
+        return
       }
-    } catch (searchError) {
-      setSearchResults([])
-      setError(searchError instanceof Error ? searchError.message : 'Search failed')
-    } finally {
-      setLoadingSearch(false)
-    }
-  }
 
-  async function handleLoadRecommendations(movie: SearchMovie) {
-    setLoadingRecommendationsFor(movie.id)
-    setError(null)
-    try {
-      const payload = await getMovieRecommendations(movie.id)
+      const bestMatch = pickBestSearchMatch(trimmed, results)
+      setSelectedMovie(bestMatch)
+
+      const payload = await getMovieRecommendations(bestMatch.id)
       setRecommendations({
         baseMovieTitle: payload.base_movie.title,
         items: payload.results,
       })
-    } catch (recommendationError) {
+      if (payload.results.length === 0) {
+        setError('No similar movies found for this title yet. Try a different movie.')
+      }
+    } catch (requestError) {
       setRecommendations(null)
-      setError(recommendationError instanceof Error ? recommendationError.message : 'Could not load recommendations')
+      setError(requestError instanceof Error ? requestError.message : 'Could not load recommendations')
     } finally {
-      setLoadingRecommendationsFor(null)
+      setLoadingRecommendations(false)
     }
   }
 
@@ -81,11 +98,11 @@ export function HomePage() {
   }
 
   const healthHint = useMemo(() => {
-    if (loadingSearch || loadingRecommendationsFor) {
+    if (loadingRecommendations) {
       return 'Searching live movie data…'
     }
     return 'Powered by TMDB direct mode + client-side scoring'
-  }, [loadingSearch, loadingRecommendationsFor])
+  }, [loadingRecommendations])
 
   return (
     <main>
@@ -105,8 +122,8 @@ export function HomePage() {
             placeholder="Try: Inception, The Matrix, Parasite..."
             aria-label="Movie title"
           />
-          <button type="submit" className="button button-primary" disabled={loadingSearch}>
-            {loadingSearch ? 'Searching…' : 'Search'}
+          <button type="submit" className="button button-primary" disabled={loadingRecommendations}>
+            {loadingRecommendations ? 'Finding similar…' : 'Search'}
           </button>
         </form>
 
@@ -115,42 +132,28 @@ export function HomePage() {
 
       {error && <p className="error-banner">{error}</p>}
 
-      {loadingSearch && <Loader label="Searching movies…" />}
+      {loadingRecommendations && <Loader label="Finding title match and recommendations…" />}
 
-      {hasSearchResults && !loadingSearch && (
+      {selectedMovie && !loadingRecommendations && (
         <section className="section-block">
           <div className="section-heading">
-            <h2>Search Results</h2>
-            <p>Select one result to generate recommendations.</p>
+            <h2>Selected Base Movie</h2>
+            <p>Using this title as the reference for similarity scoring.</p>
           </div>
           <div className="movie-grid">
-            {searchResults.map((movie) => (
-              <div key={movie.id} className="stacked-actions">
-                <MovieCard
-                  id={movie.id}
-                  title={movie.title}
-                  posterPath={movie.poster_path}
-                  releaseDate={movie.release_date}
-                  rating={movie.vote_average}
-                  isFavorite={isFavorite(movie.id)}
-                  onToggleFavorite={() => handleToggleFavorite(toFavorite(movie))}
-                />
-                <button
-                  type="button"
-                  className="button button-secondary"
-                  onClick={() => handleLoadRecommendations(movie)}
-                  disabled={loadingRecommendationsFor === movie.id}
-                >
-                  {loadingRecommendationsFor === movie.id ? 'Scoring…' : 'Get Recommendations'}
-                </button>
-              </div>
-            ))}
+            <MovieCard
+              id={selectedMovie.id}
+              title={selectedMovie.title}
+              posterPath={selectedMovie.poster_path}
+              releaseDate={selectedMovie.release_date}
+              rating={selectedMovie.vote_average}
+              recommendationLabel="Base movie used for recommendations"
+              isFavorite={isFavorite(selectedMovie.id)}
+              onToggleFavorite={() => handleToggleFavorite(toFavorite(selectedMovie))}
+            />
           </div>
         </section>
       )}
-
-      {loadingRecommendationsFor !== null && <Loader label="Building recommendation graph…" />}
-
       {recommendations && recommendations.items.length > 0 && (
         <section className="section-block">
           <div className="section-heading">
