@@ -1,16 +1,26 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
 
 :root {
-  --canvas-1: #09121d;
-  --canvas-2: #162c3b;
-  --ink: #f4f4ef;
-  --ink-muted: #adbac6;
-  --line: #26445c;
-  --accent: #4fd1c5;
-  --accent-2: #f59e0b;
+  --paper: #f5eee4;
+  --paper-soft: #fffaf3;
+  --panel: rgb(255 247 236 / 86%);
+  --panel-strong: rgb(255 251 245 / 96%);
+  --ink: #24170f;
+  --ink-muted: #665446;
+  --line: #ceb59a;
+  --line-strong: #977658;
+  --accent: #ca4a2f;
+  --accent-strong: #992c1a;
+  --accent-warm: #f0bc76;
+  --success: #286f54;
+  --danger: #a13633;
+  --shadow-soft: 0 18px 50px rgb(89 49 17 / 13%);
+  --shadow-tight: 0 10px 24px rgb(89 49 17 / 10%);
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
@@ -24,10 +34,21 @@ body {
   margin: 0;
   color: var(--ink);
   background:
-    radial-gradient(circle at 15% 20%, rgb(79 209 197 / 22%), transparent 32%),
-    radial-gradient(circle at 88% 0%, rgb(245 158 11 / 17%), transparent 28%),
-    linear-gradient(140deg, var(--canvas-1), var(--canvas-2));
-  font-family: Manrope, sans-serif;
+    radial-gradient(circle at 5% 0%, rgb(202 74 47 / 12%), transparent 38%),
+    radial-gradient(circle at 95% 10%, rgb(240 188 118 / 19%), transparent 34%),
+    linear-gradient(145deg, #f0e1cf 0%, #f8f2ea 48%, #f3e4ce 100%);
+  font-family: 'IBM Plex Sans', sans-serif;
+  line-height: 1.45;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgb(16 12 9 / 5%) 0.7px, transparent 0.7px);
+  background-size: 3px 3px;
+  opacity: 0.24;
 }
 
 h1,
@@ -35,13 +56,30 @@ h2,
 h3,
 .eyebrow,
 .button,
-.nav-links a {
-  font-family: 'Space Grotesk', sans-serif;
+.nav-links a,
+.brand-mark,
+.service-pill,
+.match-badge {
+  font-family: 'Bebas Neue', sans-serif;
+  letter-spacing: 0.02em;
+}
+
+p {
+  margin: 0;
 }
 
 a {
   color: inherit;
   text-decoration: none;
+}
+
+::selection {
+  background: rgb(202 74 47 / 18%);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
 .visually-hidden {
@@ -54,4 +92,14 @@ a {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }

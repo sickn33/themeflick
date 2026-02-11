@@ -113,6 +113,20 @@ export function HomePage() {
           Search any title, then let the client-side recommendation engine rank related picks by genre, cast, director,
           and rating affinity.
         </p>
+        <ul className="hero-metrics" aria-label="How Themeflick builds recommendations">
+          <li>
+            <span>Catalog</span>
+            <strong>TMDB live data</strong>
+          </li>
+          <li>
+            <span>Scoring signals</span>
+            <strong>Genre + cast + director</strong>
+          </li>
+          <li>
+            <span>Outcome</span>
+            <strong>Ranked picks in seconds</strong>
+          </li>
+        </ul>
 
         <form className="search-form" onSubmit={handleSearch}>
           <input

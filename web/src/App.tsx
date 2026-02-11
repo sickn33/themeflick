@@ -36,8 +36,9 @@ function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand-wrap">
+          <p className="brand-mark">Now Screening</p>
           <p className="eyebrow">Themeflick</p>
-          <p className="tagline">Movie recommendation lab</p>
+          <p className="tagline">Curated recommendations from one title you love</p>
         </div>
 
         <nav className="nav-links">
@@ -48,15 +49,17 @@ function App() {
         </nav>
 
         <p className={`service-pill service-${serviceStatus}`}>
-          TMDB {serviceStatus === 'checking' ? 'checking' : serviceStatus}
+          TMDB {serviceStatus === 'checking' ? 'Syncing' : serviceStatus}
         </p>
       </header>
 
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/favorites" element={<FavoritesPage />} />
-        <Route path="/movies/:id" element={<MovieDetailsPage />} />
-      </Routes>
+      <div className="route-shell">
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/favorites" element={<FavoritesPage />} />
+          <Route path="/movies/:id" element={<MovieDetailsPage />} />
+        </Routes>
+      </div>
     </div>
   )
 }

@@ -55,3 +55,4 @@ Runs:
 - Favorites are saved in localStorage key `themeflick:favorites:v1`.
 - On GitHub Pages the app is served under `/themeflick/`; Vite base path and Router basename are configured accordingly.
 - In frontend-only mode TMDB credentials are visible client-side by design.
+- UI restyling (2026-02-11): full cinematic/editorial refresh applied in `web/src/index.css` and `web/src/App.css` with updated typography, palette, responsive layout, and motion system.
