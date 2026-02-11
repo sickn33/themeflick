@@ -78,6 +78,7 @@ type ScoredMovie = {
   vote_average: number
   similarity_score: number
   match_reason: string
+  director_id: number | null
 }
 
 type ScoreFeatures = {
@@ -94,6 +95,11 @@ type ScoringResult = {
   score: number
   reason: string
 }
+
+const MAX_RESULTS = 18
+const MAX_PER_DIRECTOR = 3
+const MIN_SCORE_SAME_DIRECTOR = 38
+const MIN_SCORE_GENERAL = 42
 
 function hasTmdbConfig(): boolean {
   return Boolean(TMDB_ACCESS_TOKEN || TMDB_API_KEY)
@@ -268,6 +274,9 @@ function scoreCandidate(base: ScoreFeatures, candidate: ScoreFeatures): ScoringR
   const sameDirector =
     base.directorId !== null && candidate.directorId !== null && base.directorId === candidate.directorId
 
+  const baseKeyGenres = base.genreIds.slice(0, 2)
+  const keyGenreOverlap = overlapCount(baseKeyGenres, candidate.genreIds)
+
   const yearDiff =
     base.releaseYear !== null && candidate.releaseYear !== null
       ? Math.abs(base.releaseYear - candidate.releaseYear)
@@ -311,6 +320,14 @@ function scoreCandidate(base: ScoreFeatures, candidate: ScoreFeatures): ScoringR
     score += 0.03
   }
 
+  // If core genres are different, require stronger evidence from other signals.
+  if (keyGenreOverlap === 0) {
+    score -= 0.08
+    if (!sameDirector && sharedKeywords < 2 && sharedCast === 0) {
+      return null
+    }
+  }
+
   if (candidate.voteAverage < 6.2) {
     score -= 0.06
   }
@@ -322,7 +339,7 @@ function scoreCandidate(base: ScoreFeatures, candidate: ScoreFeatures): ScoringR
   }
 
   const score100 = clamp(score * 100, 0, 100)
-  const minThreshold = sameDirector ? 28 : 34
+  const minThreshold = sameDirector ? MIN_SCORE_SAME_DIRECTOR : MIN_SCORE_GENERAL
   if (score100 < minThreshold) {
     return null
   }
@@ -339,6 +356,29 @@ function scoreCandidate(base: ScoreFeatures, candidate: ScoreFeatures): ScoringR
     score: Math.round(score100 * 10) / 10,
     reason,
   }
+}
+
+function applyDirectorCap(candidates: ScoredMovie[]): ScoredMovie[] {
+  const perDirectorCount = new Map<number, number>()
+  const selected: ScoredMovie[] = []
+
+  for (const candidate of candidates) {
+    const directorId = candidate.director_id
+    if (directorId !== null) {
+      const count = perDirectorCount.get(directorId) ?? 0
+      if (count >= MAX_PER_DIRECTOR) {
+        continue
+      }
+      perDirectorCount.set(directorId, count + 1)
+    }
+
+    selected.push(candidate)
+    if (selected.length >= MAX_RESULTS) {
+      break
+    }
+  }
+
+  return selected
 }
 
 function toCandidate(movie: TmdbListMovie | TmdbPersonMovieCredit): CandidateMovie {
@@ -484,17 +524,27 @@ export async function getMovieRecommendations(movieId: number): Promise<Recommen
       vote_average: mapped.vote_average,
       similarity_score: scored.score,
       match_reason: scored.reason,
+      director_id: candidateScoreFeatures.directorId,
     })
   }
 
   scoredMovies.sort((left, right) => right.similarity_score - left.similarity_score)
+  const cappedResults = applyDirectorCap(scoredMovies)
 
   return {
     base_movie: {
       id: basePayload.id,
       title: basePayload.title,
     },
-    results: scoredMovies.slice(0, 24),
+    results: cappedResults.map((movie) => ({
+      id: movie.id,
+      title: movie.title,
+      poster_path: movie.poster_path,
+      release_date: movie.release_date,
+      vote_average: movie.vote_average,
+      similarity_score: movie.similarity_score,
+      match_reason: movie.match_reason,
+    })),
   }
 }
 
