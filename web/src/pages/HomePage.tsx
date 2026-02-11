@@ -170,7 +170,7 @@ export function HomePage() {
                 releaseDate={movie.release_date}
                 rating={movie.vote_average}
                 similarityScore={movie.similarity_score}
-                recommendationLabel="High match on style and structure"
+                recommendationLabel={movie.match_reason}
                 isFavorite={isFavorite(movie.id)}
                 onToggleFavorite={() => handleToggleFavorite(toFavorite(movie))}
               />

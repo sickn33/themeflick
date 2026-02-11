@@ -38,6 +38,7 @@ export type RecommendationMovie = {
   release_date: string | null
   vote_average: number
   similarity_score: number
+  match_reason: string
 }
 
 export type RecommendationResponse = {

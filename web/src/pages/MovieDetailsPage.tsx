@@ -164,6 +164,7 @@ export function MovieDetailsPage() {
                 releaseDate={recommendation.release_date}
                 rating={recommendation.vote_average}
                 similarityScore={recommendation.similarity_score}
+                recommendationLabel={recommendation.match_reason}
                 isFavorite={isFavorite(recommendation.id)}
                 onToggleFavorite={() => {
                   toggleFavorite(toFavorite(recommendation))
