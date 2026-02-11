@@ -93,7 +93,7 @@ export function HomePage() {
         <p className="eyebrow">Themeflick</p>
         <h1>Find what to watch next, based on one movie you already love.</h1>
         <p className="hero-copy">
-          Search any title, then let the Rust recommendation engine rank related picks by genre, cast, director,
+          Search any title, then let the client-side recommendation engine rank related picks by genre, cast, director,
           and rating affinity.
         </p>
 
@@ -155,7 +155,7 @@ export function HomePage() {
         <section className="section-block">
           <div className="section-heading">
             <h2>Because you liked {recommendations.baseMovieTitle}</h2>
-            <p>Ordered by similarity score from the Rust API.</p>
+            <p>Ordered by client-side similarity score.</p>
           </div>
           <div className="movie-grid">
             {recommendations.items.map((movie) => (

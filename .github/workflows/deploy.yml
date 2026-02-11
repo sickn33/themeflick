@@ -37,7 +37,6 @@ jobs:
         env:
           # Frontend-only mode: TMDB credentials are injected at build-time.
           VITE_TMDB_API_KEY: ${{ vars.VITE_TMDB_API_KEY }}
-          VITE_TMDB_ACCESS_TOKEN: ${{ secrets.VITE_TMDB_ACCESS_TOKEN }}
         run: |
           cd web
           npm run build

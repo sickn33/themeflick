@@ -38,11 +38,9 @@ App URL: [http://localhost:5173](http://localhost:5173)
 ## Deploy (GitHub Pages)
 Workflow injects:
 - `VITE_TMDB_API_KEY` from repo variable
-- `VITE_TMDB_ACCESS_TOKEN` from repo secret
 
 Required repository settings:
 - Variable: `VITE_TMDB_API_KEY`
-- Secret (optional): `VITE_TMDB_ACCESS_TOKEN`
 
 ## Verification
 From project root:
