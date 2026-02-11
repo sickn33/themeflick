@@ -55,3 +55,7 @@ web/dist/
 
 # Rust
 api/target/
+
+# Keep frontend source lib folder tracked
+!web/src/lib/
+!web/src/lib/**
