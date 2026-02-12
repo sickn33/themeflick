@@ -35,11 +35,11 @@ export type RankedMovie = {
   director_id: number | null
 }
 
+type ScoringMode = 'strict' | 'relaxed'
+
 type DetailedScoringResult = {
   score: number
-  rawScore: number
   reason: string
-  sameDirector: boolean
 }
 
 type ScoringSignals = {
@@ -55,10 +55,24 @@ type ScoringSignals = {
   runtimeDiff: number | null
 }
 
+type InternalRankedCandidate = RankingCandidate & {
+  similarity_score: number
+  match_reason: string
+  relevance: number
+}
+
 const MAX_RESULTS = 18
-const MAX_PER_DIRECTOR = 2
-const MIN_SCORE_SAME_DIRECTOR = 40
-const MIN_SCORE_GENERAL = 46
+const MAX_PER_DIRECTOR = 3
+const MIN_RESULTS_TARGET = 10
+
+const MIN_SCORE_STRICT_SAME_DIRECTOR = 40
+const MIN_SCORE_STRICT_GENERAL = 44
+const MIN_SCORE_RELAXED_SAME_DIRECTOR = 32
+const MIN_SCORE_RELAXED_GENERAL = 35
+
+const RAW_MIN_STRICT = 0.3
+const RAW_MIN_RELAXED = 0.2
+
 const CAST_POSITION_WEIGHTS = [1.0, 0.8, 0.6, 0.45, 0.3]
 
 const SIGNAL_WEIGHTS = {
@@ -87,8 +101,8 @@ function jaccardScore(left: number[], right: number[]): number {
 
   const leftSet = new Set(left)
   const rightSet = new Set(right)
-  let intersection = 0
 
+  let intersection = 0
   for (const value of leftSet) {
     if (rightSet.has(value)) {
       intersection += 1
@@ -163,39 +177,38 @@ function buildReason(signals: ScoringSignals): string {
   const reasons: Array<{ label: string; contribution: number }> = []
 
   if (signals.sameDirector) {
-    const contribution =
-      SIGNAL_WEIGHTS.director + (signals.genreScore >= 0.2 ? 0.04 : 0)
+    const contribution = SIGNAL_WEIGHTS.director + (signals.genreScore >= 0.2 ? 0.04 : 0)
     reasons.push({ label: 'Same director', contribution })
   }
 
-  if (signals.keywordScore >= 0.18) {
+  if (signals.keywordScore >= 0.14) {
     const contribution =
       signals.keywordScore * SIGNAL_WEIGHTS.keyword + (signals.keywordScore >= 0.35 ? 0.03 : 0)
     reasons.push({ label: 'Shared themes', contribution })
   }
 
-  if (signals.genreScore >= 0.18) {
+  if (signals.genreScore >= 0.14) {
     reasons.push({
       label: 'Strong genre overlap',
       contribution: signals.genreScore * SIGNAL_WEIGHTS.genre,
     })
   }
 
-  if (signals.castScore >= 0.2) {
+  if (signals.castScore >= 0.16) {
     reasons.push({
       label: 'Shared cast',
       contribution: signals.castScore * SIGNAL_WEIGHTS.cast,
     })
   }
 
-  if (signals.yearDiff !== null && signals.yearScore >= 0.55) {
+  if (signals.yearDiff !== null && signals.yearScore >= 0.5) {
     reasons.push({
       label: 'Same era',
       contribution: signals.yearScore * SIGNAL_WEIGHTS.year,
     })
   }
 
-  if (signals.runtimeDiff !== null && signals.runtimeScore >= 0.65) {
+  if (signals.runtimeDiff !== null && signals.runtimeScore >= 0.62) {
     reasons.push({
       label: 'Similar pacing',
       contribution: signals.runtimeScore * SIGNAL_WEIGHTS.runtime,
@@ -220,19 +233,33 @@ function buildReason(signals: ScoringSignals): string {
 }
 
 function calibrateToMatchScore(rawScore: number): number {
-  const logistic = 1 / (1 + Math.exp(-(rawScore - 0.52) / 0.1))
-  const calibrated = clamp(12 + logistic * 86, 0, 99.4)
+  const logistic = 1 / (1 + Math.exp(-(rawScore - 0.48) / 0.11))
+  const calibrated = clamp(18 + logistic * 80, 0, 99.4)
   return roundToSingleDecimal(calibrated)
 }
 
-function scoreCandidateDetailed(base: ScoreFeatures, candidate: ScoreFeatures): DetailedScoringResult | null {
+function scoreCandidateDetailed(
+  base: ScoreFeatures,
+  candidate: ScoreFeatures,
+  mode: ScoringMode,
+): DetailedScoringResult | null {
   const signals = scoreSignals(base, candidate)
 
-  if (!signals.sameDirector && signals.genreScore < 0.1 && signals.keywordScore < 0.1 && signals.castScore < 0.2) {
+  const weakGenreThreshold = mode === 'strict' ? 0.1 : 0.04
+  const weakKeywordThreshold = mode === 'strict' ? 0.1 : 0.04
+  const weakCastThreshold = mode === 'strict' ? 0.2 : 0.08
+
+  if (
+    !signals.sameDirector &&
+    signals.genreScore < weakGenreThreshold &&
+    signals.keywordScore < weakKeywordThreshold &&
+    signals.castScore < weakCastThreshold
+  ) {
     return null
   }
 
-  if (!signals.sameDirector && candidate.voteCount < 35) {
+  const minVoteCount = mode === 'strict' ? 35 : 12
+  if (!signals.sameDirector && candidate.voteCount < minVoteCount) {
     return null
   }
 
@@ -253,7 +280,7 @@ function scoreCandidateDetailed(base: ScoreFeatures, candidate: ScoreFeatures): 
     rawScore += 0.03
   }
   if (!signals.sameDirector && signals.genreScore === 0) {
-    rawScore -= 0.1
+    rawScore -= mode === 'strict' ? 0.08 : 0.04
   }
   if (signals.yearDiff !== null && signals.yearDiff > 25) {
     rawScore -= 0.04
@@ -261,21 +288,27 @@ function scoreCandidateDetailed(base: ScoreFeatures, candidate: ScoreFeatures): 
 
   rawScore = clamp(rawScore, 0, 1)
 
-  if (rawScore < 0.34) {
+  const rawMin = mode === 'strict' ? RAW_MIN_STRICT : RAW_MIN_RELAXED
+  if (rawScore < rawMin) {
     return null
   }
 
   const score = calibrateToMatchScore(rawScore)
-  const threshold = signals.sameDirector ? MIN_SCORE_SAME_DIRECTOR : MIN_SCORE_GENERAL
+  const threshold = signals.sameDirector
+    ? mode === 'strict'
+      ? MIN_SCORE_STRICT_SAME_DIRECTOR
+      : MIN_SCORE_RELAXED_SAME_DIRECTOR
+    : mode === 'strict'
+      ? MIN_SCORE_STRICT_GENERAL
+      : MIN_SCORE_RELAXED_GENERAL
+
   if (score < threshold) {
     return null
   }
 
   return {
     score,
-    rawScore,
     reason: buildReason(signals),
-    sameDirector: signals.sameDirector,
   }
 }
 
@@ -297,22 +330,16 @@ function pairSimilarity(left: RankingCandidate, right: RankingCandidate): number
   return clamp(sameDirector * 0.5 + genreSimilarity * 0.35 + eraSimilarity * 0.15, 0, 1)
 }
 
-export function scoreCandidate(base: ScoreFeatures, candidate: ScoreFeatures): ScoringResult | null {
-  const detailed = scoreCandidateDetailed(base, candidate)
-  if (!detailed) {
-    return null
-  }
+function collectScoredCandidates(
+  base: ScoreFeatures,
+  candidates: RankingCandidate[],
+  mode: ScoringMode,
+): InternalRankedCandidate[] {
+  const relevanceBoost = mode === 'strict' ? 0.025 : 0
 
-  return {
-    score: detailed.score,
-    reason: detailed.reason,
-  }
-}
-
-export function rankCandidates(base: ScoreFeatures, candidates: RankingCandidate[]): RankedMovie[] {
   const scored = candidates
     .map((candidate) => {
-      const scoredCandidate = scoreCandidateDetailed(base, candidate.features)
+      const scoredCandidate = scoreCandidateDetailed(base, candidate.features, mode)
       if (!scoredCandidate) {
         return null
       }
@@ -321,14 +348,10 @@ export function rankCandidates(base: ScoreFeatures, candidates: RankingCandidate
         ...candidate,
         similarity_score: scoredCandidate.score,
         match_reason: scoredCandidate.reason,
-        relevance: scoredCandidate.score / 100,
+        relevance: clamp(scoredCandidate.score / 100 + relevanceBoost, 0, 1),
       }
     })
-    .filter((candidate): candidate is RankingCandidate & {
-      similarity_score: number
-      match_reason: string
-      relevance: number
-    } => candidate !== null)
+    .filter((candidate): candidate is InternalRankedCandidate => candidate !== null)
 
   scored.sort((left, right) => {
     if (right.similarity_score !== left.similarity_score) {
@@ -340,8 +363,12 @@ export function rankCandidates(base: ScoreFeatures, candidates: RankingCandidate
     return left.id - right.id
   })
 
+  return scored
+}
+
+function rerankWithDiversity(scored: InternalRankedCandidate[]): InternalRankedCandidate[] {
   const remaining = [...scored]
-  const selected: typeof scored = []
+  const selected: InternalRankedCandidate[] = []
   const directorCounts = new Map<number, number>()
 
   while (remaining.length > 0 && selected.length < MAX_RESULTS) {
@@ -350,9 +377,11 @@ export function rankCandidates(base: ScoreFeatures, candidates: RankingCandidate
 
     for (let index = 0; index < remaining.length; index += 1) {
       const candidate = remaining[index]
+      const directorCap = selected.length < MIN_RESULTS_TARGET ? MAX_PER_DIRECTOR + 1 : MAX_PER_DIRECTOR
+
       if (candidate.director_id !== null) {
         const count = directorCounts.get(candidate.director_id) ?? 0
-        if (count >= MAX_PER_DIRECTOR) {
+        if (count >= directorCap) {
           continue
         }
       }
@@ -362,7 +391,8 @@ export function rankCandidates(base: ScoreFeatures, candidates: RankingCandidate
           ? 0
           : Math.max(...selected.map((picked) => pairSimilarity(candidate, picked)))
 
-      const mmr = 0.78 * candidate.relevance - 0.22 * maxSimilarity
+      const diversityPenalty = selected.length < MIN_RESULTS_TARGET ? 0.16 : 0.22
+      const mmr = 0.84 * candidate.relevance - diversityPenalty * maxSimilarity
 
       if (mmr > bestMmr) {
         bestMmr = mmr
@@ -395,6 +425,35 @@ export function rankCandidates(base: ScoreFeatures, candidates: RankingCandidate
 
     selected.push(picked)
   }
+
+  return selected
+}
+
+export function scoreCandidate(base: ScoreFeatures, candidate: ScoreFeatures): ScoringResult | null {
+  const strict = scoreCandidateDetailed(base, candidate, 'strict')
+  if (!strict) {
+    return null
+  }
+
+  return {
+    score: strict.score,
+    reason: strict.reason,
+  }
+}
+
+export function rankCandidates(base: ScoreFeatures, candidates: RankingCandidate[]): RankedMovie[] {
+  const strictScored = collectScoredCandidates(base, candidates, 'strict')
+
+  let candidatePool = strictScored
+  if (strictScored.length < MIN_RESULTS_TARGET) {
+    const strictIds = new Set(strictScored.map((movie) => movie.id))
+    const relaxedScored = collectScoredCandidates(base, candidates, 'relaxed').filter(
+      (movie) => !strictIds.has(movie.id),
+    )
+    candidatePool = [...strictScored, ...relaxedScored]
+  }
+
+  const selected = rerankWithDiversity(candidatePool)
 
   return selected.map((movie) => ({
     id: movie.id,

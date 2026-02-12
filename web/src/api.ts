@@ -282,7 +282,7 @@ export async function getMovieRecommendations(movieId: number): Promise<Recommen
         language: 'en-US',
       })
       directorMovies = (credits.crew ?? [])
-        .filter((movie) => movie.job === 'Director' && (movie.vote_count ?? 0) >= 50)
+        .filter((movie) => movie.job === 'Director' && (movie.vote_count ?? 0) >= 20)
         .sort((left, right) => {
           if ((right.vote_count ?? 0) !== (left.vote_count ?? 0)) {
             return (right.vote_count ?? 0) - (left.vote_count ?? 0)
@@ -305,7 +305,7 @@ export async function getMovieRecommendations(movieId: number): Promise<Recommen
   )
 
   const detailedCandidates = await Promise.allSettled(
-    mergedCandidates.slice(0, 45).map((movie) =>
+    mergedCandidates.slice(0, 60).map((movie) =>
       tmdbJson<TmdbMovieDetails>(`/movie/${movie.id}`, {
         append_to_response: 'credits,keywords',
         language: 'en-US',

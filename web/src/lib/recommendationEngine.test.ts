@@ -80,7 +80,7 @@ describe('recommendationEngine', () => {
     expect(scored).toBeNull()
   })
 
-  it('enforces max two recommendations per director', () => {
+  it('limits director concentration even when diversity fallback is active', () => {
     const base = features()
     const sameDirector: RankingCandidate[] = [
       candidate(1, { voteAverage: 8.7, keywordIds: [10, 20, 30, 40] }, 7),
@@ -97,8 +97,27 @@ describe('recommendationEngine', () => {
     const ranked = rankCandidates(base, [...sameDirector, ...otherDirectors])
     const fromDirector7 = ranked.filter((movie) => movie.director_id === 7)
 
-    expect(fromDirector7.length).toBeLessThanOrEqual(2)
+    expect(fromDirector7.length).toBeLessThanOrEqual(4)
     expect(ranked.length).toBeGreaterThan(0)
+  })
+
+  it('falls back to relaxed mode when strict ranking is too sparse', () => {
+    const base = features()
+    const ranked = rankCandidates(base, [
+      candidate(60, {
+        directorId: 12,
+        genreIds: [28, 18],
+        keywordIds: [10],
+        castIds: [2],
+        voteAverage: 7.4,
+        voteCount: 18,
+        releaseYear: 2007,
+        runtimeMinutes: 118,
+      }),
+    ])
+
+    expect(ranked).toHaveLength(1)
+    expect(ranked[0].similarity_score).toBeGreaterThanOrEqual(35)
   })
 
   it('builds reasons from strongest matching signals', () => {
