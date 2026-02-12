@@ -279,3 +279,20 @@ Error envelope (all non-2xx):
 - New lesson (2026-02-11): for GitHub Pages project sites, set Vite `base` to `/<repo-name>/` and configure Router `basename` accordingly, otherwise app may render blank due broken asset paths.
 - New lesson (2026-02-11): in frontend-only mode, use GitHub Actions build-time vars (`VITE_*`) for TMDB credentials and remove backend health dependency from UI status.
 - New lesson (2026-02-11): for full UI revamps, apply `frontend-design` first and always close with `lint-and-validate` checks (`lint`, `type-check`, `build`, `audit`).
+
+## Executor Update (2026-02-12)
+
+Task: recommendation engine + match score V2 one-shot implementation.
+
+Delivered:
+- Added new scoring/ranking module at `web/src/lib/recommendationEngine.ts`.
+- Added unit tests at `web/src/lib/recommendationEngine.test.ts` (7 cases covering hard filters, determinism, director cap, calibration).
+- Refactored `web/src/api.ts` to delegate scoring/reranking to the new engine.
+- Added Vitest script/dependency in `web/package.json` and updated lockfile.
+- Updated verification pipeline in `scripts/verify.sh` to run lint + test + build.
+- Updated docs in `README.md` and `walkthrough.md` for match score V2 and verification commands.
+
+TDD evidence:
+- RED: `npm run test` failed with missing module `./recommendationEngine`.
+- GREEN: `npm run test` passes with 7/7 tests.
+- REFACTOR: scoring logic extracted into dedicated module; API layer now focused on data fetching + mapping.

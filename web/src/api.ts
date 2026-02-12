@@ -1,4 +1,9 @@
 import type { MovieDetails, RecommendationResponse, SearchMovie } from './types'
+import {
+  rankCandidates,
+  type RankingCandidate,
+  type ScoreFeatures,
+} from './lib/recommendationEngine'
 
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3'
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w500'
@@ -69,37 +74,6 @@ type CandidateMovie = {
   vote_average: number
   vote_count: number
 }
-
-type ScoredMovie = {
-  id: number
-  title: string
-  poster_path: string | null
-  release_date: string | null
-  vote_average: number
-  similarity_score: number
-  match_reason: string
-  director_id: number | null
-}
-
-type ScoreFeatures = {
-  genreIds: number[]
-  directorId: number | null
-  castIds: number[]
-  voteAverage: number
-  voteCount: number
-  releaseYear: number | null
-  keywordIds: number[]
-}
-
-type ScoringResult = {
-  score: number
-  reason: string
-}
-
-const MAX_RESULTS = 18
-const MAX_PER_DIRECTOR = 3
-const MIN_SCORE_SAME_DIRECTOR = 38
-const MIN_SCORE_GENERAL = 42
 
 function hasTmdbConfig(): boolean {
   return Boolean(TMDB_ACCESS_TOKEN || TMDB_API_KEY)
@@ -209,176 +183,9 @@ function extractScoreFeatures(payload: TmdbMovieDetails): ScoreFeatures {
     voteAverage: payload.vote_average ?? 0,
     voteCount: payload.vote_count ?? 0,
     releaseYear: parseYear(payload.release_date),
+    runtimeMinutes: payload.runtime ?? null,
     keywordIds: extractKeywordIds(payload),
   }
-}
-
-function jaccardScore(left: number[], right: number[]): number {
-  if (left.length === 0 || right.length === 0) {
-    return 0
-  }
-
-  const leftSet = new Set(left)
-  const rightSet = new Set(right)
-  const intersection = [...leftSet].filter((value) => rightSet.has(value)).length
-  const union = new Set([...left, ...right]).size
-
-  return union === 0 ? 0 : intersection / union
-}
-
-function overlapCount(left: number[], right: number[]): number {
-  if (left.length === 0 || right.length === 0) {
-    return 0
-  }
-
-  const rightSet = new Set(right)
-  return left.filter((value) => rightSet.has(value)).length
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value))
-}
-
-function buildReason(params: {
-  sameDirector: boolean
-  sharedKeywords: number
-  sharedGenres: number
-  sharedCast: number
-  yearDiff: number | null
-}): string {
-  const reasons: string[] = []
-
-  if (params.sameDirector) {
-    reasons.push('Same director')
-  }
-  if (params.sharedKeywords >= 2) {
-    reasons.push('Shared themes')
-  }
-  if (params.sharedGenres >= 2) {
-    reasons.push('Strong genre overlap')
-  }
-  if (params.sharedCast >= 1) {
-    reasons.push('Shared cast')
-  }
-  if (params.yearDiff !== null && params.yearDiff <= 6) {
-    reasons.push('Same era')
-  }
-
-  return reasons.length > 0 ? reasons.slice(0, 2).join(' + ') : 'Strong overall profile match'
-}
-
-function scoreCandidate(base: ScoreFeatures, candidate: ScoreFeatures): ScoringResult | null {
-  const sharedGenres = overlapCount(base.genreIds, candidate.genreIds)
-  const sharedKeywords = overlapCount(base.keywordIds, candidate.keywordIds)
-  const sharedCast = overlapCount(base.castIds, candidate.castIds)
-  const sameDirector =
-    base.directorId !== null && candidate.directorId !== null && base.directorId === candidate.directorId
-
-  const baseKeyGenres = base.genreIds.slice(0, 2)
-  const keyGenreOverlap = overlapCount(baseKeyGenres, candidate.genreIds)
-
-  const yearDiff =
-    base.releaseYear !== null && candidate.releaseYear !== null
-      ? Math.abs(base.releaseYear - candidate.releaseYear)
-      : null
-
-  if (!sameDirector && sharedGenres === 0 && sharedKeywords === 0 && sharedCast === 0) {
-    return null
-  }
-
-  if (!sameDirector && candidate.voteCount < 40) {
-    return null
-  }
-
-  const genreScore = jaccardScore(base.genreIds, candidate.genreIds)
-  const keywordScore = clamp(sharedKeywords / 4, 0, 1)
-  const directorScore = sameDirector ? 1 : 0
-  const castScore = clamp(sharedCast / 3, 0, 1)
-  const yearScore = yearDiff === null ? 0.45 : clamp(1 - yearDiff / 18, 0, 1)
-  const ratingScore = clamp(1 - Math.abs(base.voteAverage - candidate.voteAverage) / 3.5, 0, 1)
-  const voteCountScore = clamp(Math.log10(candidate.voteCount + 1) / 4, 0, 1)
-
-  let score =
-    genreScore * 0.33 +
-    keywordScore * 0.24 +
-    directorScore * 0.13 +
-    castScore * 0.1 +
-    yearScore * 0.1 +
-    ratingScore * 0.06 +
-    voteCountScore * 0.04
-
-  if (sameDirector) {
-    score += 0.07
-  }
-  if (sharedKeywords >= 3) {
-    score += 0.05
-  }
-  if (sharedGenres >= 2) {
-    score += 0.03
-  }
-  if (sharedCast >= 2) {
-    score += 0.03
-  }
-
-  // If core genres are different, require stronger evidence from other signals.
-  if (keyGenreOverlap === 0) {
-    score -= 0.08
-    if (!sameDirector && sharedKeywords < 2 && sharedCast === 0) {
-      return null
-    }
-  }
-
-  if (candidate.voteAverage < 6.2) {
-    score -= 0.06
-  }
-  if (!sameDirector && candidate.voteCount < 150) {
-    score -= 0.03
-  }
-  if (yearDiff !== null && yearDiff > 20) {
-    score -= 0.04
-  }
-
-  const score100 = clamp(score * 100, 0, 100)
-  const minThreshold = sameDirector ? MIN_SCORE_SAME_DIRECTOR : MIN_SCORE_GENERAL
-  if (score100 < minThreshold) {
-    return null
-  }
-
-  const reason = buildReason({
-    sameDirector,
-    sharedKeywords,
-    sharedGenres,
-    sharedCast,
-    yearDiff,
-  })
-
-  return {
-    score: Math.round(score100 * 10) / 10,
-    reason,
-  }
-}
-
-function applyDirectorCap(candidates: ScoredMovie[]): ScoredMovie[] {
-  const perDirectorCount = new Map<number, number>()
-  const selected: ScoredMovie[] = []
-
-  for (const candidate of candidates) {
-    const directorId = candidate.director_id
-    if (directorId !== null) {
-      const count = perDirectorCount.get(directorId) ?? 0
-      if (count >= MAX_PER_DIRECTOR) {
-        continue
-      }
-      perDirectorCount.set(directorId, count + 1)
-    }
-
-    selected.push(candidate)
-    if (selected.length >= MAX_RESULTS) {
-      break
-    }
-  }
-
-  return selected
 }
 
 function toCandidate(movie: TmdbListMovie | TmdbPersonMovieCredit): CandidateMovie {
@@ -406,13 +213,12 @@ function uniqueCandidates(candidates: CandidateMovie[], baseMovieId: number): Ca
     }
   }
 
-  return [...byId.values()]
-    .sort((left, right) => {
-      if (right.vote_count !== left.vote_count) {
-        return right.vote_count - left.vote_count
-      }
-      return right.vote_average - left.vote_average
-    })
+  return [...byId.values()].sort((left, right) => {
+    if (right.vote_count !== left.vote_count) {
+      return right.vote_count - left.vote_count
+    }
+    return right.vote_average - left.vote_average
+  })
 }
 
 export async function getHealth(): Promise<{ status: string; service: string }> {
@@ -475,7 +281,15 @@ export async function getMovieRecommendations(movieId: number): Promise<Recommen
       const credits = await tmdbJson<TmdbPersonMovieCredits>(`/person/${directorId}/movie_credits`, {
         language: 'en-US',
       })
-      directorMovies = (credits.crew ?? []).filter((movie) => movie.job === 'Director')
+      directorMovies = (credits.crew ?? [])
+        .filter((movie) => movie.job === 'Director' && (movie.vote_count ?? 0) >= 50)
+        .sort((left, right) => {
+          if ((right.vote_count ?? 0) !== (left.vote_count ?? 0)) {
+            return (right.vote_count ?? 0) - (left.vote_count ?? 0)
+          }
+          return (right.vote_average ?? 0) - (left.vote_average ?? 0)
+        })
+        .slice(0, 18)
     } catch (error) {
       console.warn('Director filmography fetch failed', error)
     }
@@ -491,7 +305,7 @@ export async function getMovieRecommendations(movieId: number): Promise<Recommen
   )
 
   const detailedCandidates = await Promise.allSettled(
-    mergedCandidates.slice(0, 55).map((movie) =>
+    mergedCandidates.slice(0, 45).map((movie) =>
       tmdbJson<TmdbMovieDetails>(`/movie/${movie.id}`, {
         append_to_response: 'credits,keywords',
         language: 'en-US',
@@ -500,7 +314,7 @@ export async function getMovieRecommendations(movieId: number): Promise<Recommen
   )
 
   const baseScoreFeatures = extractScoreFeatures(basePayload)
-  const scoredMovies: ScoredMovie[] = []
+  const rankingCandidates: RankingCandidate[] = []
 
   for (const result of detailedCandidates) {
     if (result.status !== 'fulfilled') {
@@ -510,33 +324,26 @@ export async function getMovieRecommendations(movieId: number): Promise<Recommen
     const detail = result.value
     const mapped = mapMovieDetails(detail)
     const candidateScoreFeatures = extractScoreFeatures(detail)
-    const scored = scoreCandidate(baseScoreFeatures, candidateScoreFeatures)
 
-    if (!scored) {
-      continue
-    }
-
-    scoredMovies.push({
+    rankingCandidates.push({
       id: mapped.id,
       title: mapped.title,
       poster_path: mapped.poster_path,
       release_date: mapped.release_date,
       vote_average: mapped.vote_average,
-      similarity_score: scored.score,
-      match_reason: scored.reason,
       director_id: candidateScoreFeatures.directorId,
+      features: candidateScoreFeatures,
     })
   }
 
-  scoredMovies.sort((left, right) => right.similarity_score - left.similarity_score)
-  const cappedResults = applyDirectorCap(scoredMovies)
+  const ranked = rankCandidates(baseScoreFeatures, rankingCandidates)
 
   return {
     base_movie: {
       id: basePayload.id,
       title: basePayload.title,
     },
-    results: cappedResults.map((movie) => ({
+    results: ranked.map((movie) => ({
       id: movie.id,
       title: movie.title,
       poster_path: movie.poster_path,

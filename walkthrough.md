@@ -35,6 +35,23 @@ cd /Users/nicco/Projects/themeflick
 
 App URL: [http://localhost:5173](http://localhost:5173)
 
+## Recommendation Engine V2
+Path:
+- `/Users/nicco/Projects/themeflick/web/src/lib/recommendationEngine.ts`
+
+Behavior:
+- weighted multi-signal scoring:
+  - genre, keyword themes, cast overlap, director match, year distance, runtime distance, rating gap, vote-count confidence
+- calibrated `% match` via logistic transform to avoid inflated 90+ values
+- hard filters to remove weak/noisy candidates
+- diversity reranking with MMR
+- max 2 recommendations per director
+- reasons generated from strongest signals (example: `Same director + Shared themes`)
+
+The public payload used by UI is unchanged:
+- `similarity_score`
+- `match_reason`
+
 ## Deploy (GitHub Pages)
 Workflow injects:
 - `VITE_TMDB_API_KEY` from repo variable
@@ -49,7 +66,16 @@ From project root:
 ```
 Runs:
 - `npm run lint`
+- `npm run test`
 - `npm run build`
+
+Optional direct checks:
+```bash
+cd web
+npm run lint
+npm run test
+npm run build
+```
 
 ## Notes
 - Favorites are saved in localStorage key `themeflick:favorites:v1`.
