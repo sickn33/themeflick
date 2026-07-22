@@ -10,10 +10,6 @@ type AllowedRoute = {
   ttl: number
 }
 
-interface WorkerContext {
-  waitUntil(promise: Promise<unknown>): void
-}
-
 const TMDB_ORIGIN = 'https://api.themoviedb.org/3'
 const TMDB_TIMEOUT_MS = 10_000
 
@@ -92,7 +88,6 @@ function validateQuery(searchParams: URLSearchParams, route: AllowedRoute): bool
 async function proxyTmdb(
   request: Request,
   env: Env,
-  ctx: WorkerContext,
 ): Promise<Response> {
   if (request.method !== 'GET') return jsonError(405, 'Method not allowed')
 
@@ -105,10 +100,6 @@ async function proxyTmdb(
   if (!env.TMDB_ACCESS_TOKEN && !env.TMDB_API_KEY) {
     return jsonError(503, 'Movie data is not configured')
   }
-
-  const cacheKey = new Request(incoming.toString(), { method: 'GET' })
-  const cached = await caches.default.match(cacheKey)
-  if (cached) return cached
 
   const target = new URL(`${TMDB_ORIGIN}${path}`)
   for (const [key, value] of incoming.searchParams) target.searchParams.set(key, value)
@@ -138,14 +129,13 @@ async function proxyTmdb(
     headers: responseHeaders,
   })
 
-  if (upstream.ok) ctx.waitUntil(caches.default.put(cacheKey, response.clone()))
   return response
 }
 
 const worker = {
-  async fetch(request: Request, env: Env, ctx: WorkerContext): Promise<Response> {
+  async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
-    if (url.pathname.startsWith('/api/tmdb/')) return proxyTmdb(request, env, ctx)
+    if (url.pathname.startsWith('/api/tmdb/')) return proxyTmdb(request, env)
 
     const asset = await env.ASSETS.fetch(request)
     if (!asset.headers.get('content-type')?.includes('text/html')) return asset
