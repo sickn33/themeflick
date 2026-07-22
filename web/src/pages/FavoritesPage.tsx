@@ -2,26 +2,22 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { MovieCard } from '../components/MovieCard'
-import { readFavorites, toggleFavorite } from '../lib/favorites'
+import { readFavorites, subscribeToFavorites, toggleFavorite } from '../lib/favorites'
 import type { FavoriteMovie } from '../types'
 
 export function FavoritesPage() {
   const [favorites, setFavorites] = useState<FavoriteMovie[]>(() => readFavorites())
+  const [announcement, setAnnouncement] = useState('')
 
   useEffect(() => {
-    const listener = () => {
+    return subscribeToFavorites(() => {
       setFavorites(readFavorites())
-    }
-
-    window.addEventListener('storage', listener)
-    return () => {
-      window.removeEventListener('storage', listener)
-    }
+    })
   }, [])
 
   function removeFavorite(movie: FavoriteMovie) {
     toggleFavorite(movie)
-    setFavorites(readFavorites())
+    setAnnouncement(`${movie.title} removed from favorites.`)
   }
 
   return (
@@ -34,6 +30,7 @@ export function FavoritesPage() {
       {favorites.length === 0 ? (
         <div className="empty-state">
           <p>No favorites yet.</p>
+          <p className="empty-copy">Save a recommendation or reference film to keep a short list for later.</p>
           <Link className="button button-primary" to="/">
             Start exploring
           </Link>
@@ -54,6 +51,10 @@ export function FavoritesPage() {
           ))}
         </div>
       )}
+
+      <p className="visually-hidden" role="status" aria-live="polite">
+        {announcement}
+      </p>
     </main>
   )
 }

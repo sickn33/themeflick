@@ -1,0 +1,4 @@
+# Local Worker credentials. Copy to .dev.vars; never commit the real values.
+TMDB_ACCESS_TOKEN=
+# Alternative TMDB v3 key when an access token is unavailable.
+TMDB_API_KEY=

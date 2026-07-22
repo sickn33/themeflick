@@ -43,10 +43,13 @@ Thumbs.db
 # Application specific
 instance/*.db
 .env
+.gemini/
 *.log
 movies.db
 build/
 tmp/
+.cache/
+web/.cache/
 
 # Node / frontend
 node_modules/
@@ -59,3 +62,7 @@ api/target/
 # Keep frontend source lib folder tracked
 !web/src/lib/
 !web/src/lib/**
+
+# Keep the Sites build integration tracked.
+!web/build/
+!web/build/sites-vite-plugin.ts

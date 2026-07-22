@@ -4,30 +4,39 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vite",
+    "prebuild": "node scripts/prepare-sites-build.mjs",
+    "build": "tsc -b && WRANGLER_LOG_PATH=.wrangler/wrangler.log vite build",
+    "postbuild": "node scripts/finalize-sites-build.mjs",
     "lint": "eslint .",
     "test": "vitest run",
-    "preview": "vite preview"
+    "benchmark:human": "node --experimental-strip-types benchmark-human.ts",
+    "benchmark:live": "node --experimental-strip-types analyze.ts",
+    "benchmark:production": "node --experimental-strip-types benchmark-production.ts",
+    "generate:tag-signatures": "node --experimental-strip-types generate-tag-signatures.ts",
+    "preview": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vite preview",
+    "smoke:local": "node scripts/smoke-local.mjs"
   },
   "dependencies": {
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-router-dom": "^7.13.0"
+    "react-router-dom": "^7.18.0"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "1.37.1",
     "@eslint/js": "^9.39.1",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^5.1.1",
+    "@vitejs/plugin-react": "^6.0.2",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.48.0",
-    "vitest": "^3.2.4",
-    "vite": "^7.3.1"
+    "vite": "^8.0.16",
+    "vitest": "^4.1.9",
+    "wrangler": "4.92.0"
   }
 }

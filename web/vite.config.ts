@@ -1,17 +1,9 @@
-import { defineConfig } from 'vite'
+import { cloudflare } from '@cloudflare/vite-plugin'
 import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vite'
 
-// https://vite.dev/config/
-export default defineConfig(({ command }) => ({
-  // GitHub Pages serves this app under /themeflick/.
-  base: command === 'build' ? '/themeflick/' : '/',
-  plugins: [react()],
-  server: {
-    proxy: {
-      '/api': {
-        target: 'http://localhost:3000',
-        changeOrigin: true,
-      },
-    },
-  },
+import { sites } from './build/sites-vite-plugin'
+
+export default defineConfig(({ mode }) => ({
+  plugins: mode === 'test' ? [react()] : [react(), sites(), cloudflare()],
 }))
