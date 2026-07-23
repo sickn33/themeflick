@@ -9,7 +9,7 @@ OpenAI Sites is the only production deployment system. GitHub Actions is CI-only
 - `GET /api/health/live` verifies that the Worker is running.
 - `GET /api/health/ready` verifies the D1 binding, database query, and TMDB runtime credential.
 - Monitor 5xx rate, 429 rate, p95 latency, D1 errors, and TMDB upstream failures. Logs contain request ID, coarse route, status, and duration only; they must not contain email, name, IP, token, query text, or body.
-- Run `THEMEFLICK_ORIGIN=https://… npm run smoke:production` after each private deployment. Supply an authenticated preview cookie only through the shell environment when the private access layer requires it.
+- Run `THEMEFLICK_ORIGIN=https://… npm run smoke:production` after each private deployment. Supply an authenticated preview cookie through `THEMEFLICK_AUTH_COOKIE` or the private Sites bearer through `THEMEFLICK_SITES_BEARER`; keep either value only in the shell environment and never log or commit it.
 
 ## Database migration and backup
 

@@ -18,8 +18,8 @@
 - [ ] Configure the real operator/data-controller identity with `VITE_LEGAL_CONTROLLER_NAME`.
 - [ ] Configure and monitor the privacy/support address with `VITE_LEGAL_CONTACT_EMAIL`.
 - [ ] Confirm whether intended use is non-commercial; obtain the appropriate TMDB commercial license before monetization or other commercial use.
-- [ ] Verify the deployed Sites authentication boundary rejects client-supplied `oai-authenticated-user-*` headers before they reach the Worker.
+- [x] Verify the deployed Sites authentication boundary rejects client-supplied `oai-authenticated-user-*` headers before they reach the Worker.
 - [ ] Record a production D1 export/restore drill and monitoring owner.
-- [ ] Run `THEMEFLICK_ORIGIN=https://… npm run smoke:production` against the final private version.
+- [x] Run `THEMEFLICK_ORIGIN=https://… npm run smoke:production` against the final private version.
 
 The site must remain private until every item in the second section is checked. A private deployment is not approval to make the product public.
