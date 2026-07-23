@@ -8,6 +8,15 @@ for (const relativePath of required) {
   await access(new URL(relativePath, root))
 }
 
+const hosting = JSON.parse(await readFile(new URL('.openai/hosting.json', root), 'utf8'))
+if (hosting.d1) {
+  const migrationDirectory = new URL('.openai/drizzle/', root)
+  const migrations = await readdir(migrationDirectory)
+  if (!migrations.some((name) => name.endsWith('.sql'))) {
+    throw new Error('D1 is enabled but the build contains no SQL migration')
+  }
+}
+
 // Cloudflare creates this preview-only file from local development variables.
 // It must never enter a Sites archive, even when the values are non-production.
 await rm(new URL('server/.dev.vars', root), { force: true })

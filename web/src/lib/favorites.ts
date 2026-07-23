@@ -1,8 +1,18 @@
 import type { FavoriteMovie } from '../types'
 
-const FAVORITES_KEY = 'themeflick:favorites:v1'
+const DEVICE_FAVORITES_KEY = 'themeflick:favorites:v1'
 const MAX_FAVORITES = 100
 export const FAVORITES_CHANGED_EVENT = 'themeflick:favorites-changed'
+let activeFavoritesKey = DEVICE_FAVORITES_KEY
+
+function accountFavoritesKey(email: string): string {
+  let hash = 2166136261
+  for (const character of email.trim().toLowerCase()) {
+    hash ^= character.charCodeAt(0)
+    hash = Math.imul(hash, 16777619)
+  }
+  return `themeflick:favorites:account:v1:${(hash >>> 0).toString(36)}`
+}
 
 function isFavoriteMovie(value: unknown): value is FavoriteMovie {
   if (!value || typeof value !== 'object') {
@@ -23,9 +33,9 @@ function isFavoriteMovie(value: unknown): value is FavoriteMovie {
   )
 }
 
-export function readFavorites(): FavoriteMovie[] {
+function readFavoritesAt(key: string): FavoriteMovie[] {
   try {
-    const raw = window.localStorage.getItem(FAVORITES_KEY)
+    const raw = window.localStorage.getItem(key)
     if (!raw) {
       return []
     }
@@ -37,9 +47,44 @@ export function readFavorites(): FavoriteMovie[] {
   }
 }
 
+function writeFavoritesAt(key: string, favorites: FavoriteMovie[]): void {
+  window.localStorage.setItem(key, JSON.stringify(favorites.filter(isFavoriteMovie).slice(0, MAX_FAVORITES)))
+}
+
+export function readFavorites(): FavoriteMovie[] {
+  return readFavoritesAt(activeFavoritesKey)
+}
+
+export function readDeviceFavorites(): FavoriteMovie[] {
+  return readFavoritesAt(DEVICE_FAVORITES_KEY)
+}
+
+export function activateAccountFavorites(email: string, favorites?: FavoriteMovie[]): void {
+  activeFavoritesKey = accountFavoritesKey(email)
+  try {
+    if (favorites) writeFavoritesAt(activeFavoritesKey, favorites)
+  } catch {
+    // The in-memory account scope still prevents device favorites leaking into a signed-in account.
+  }
+  window.dispatchEvent?.(new Event(FAVORITES_CHANGED_EVENT))
+}
+
+export function activateDeviceFavorites(): void {
+  activeFavoritesKey = DEVICE_FAVORITES_KEY
+  window.dispatchEvent?.(new Event(FAVORITES_CHANGED_EVENT))
+}
+
+export function clearDeviceFavorites(): void {
+  try {
+    window.localStorage.removeItem(DEVICE_FAVORITES_KEY)
+  } catch {
+    // Storage can be unavailable; the successful cloud import remains authoritative.
+  }
+}
+
 export function saveFavorites(favorites: FavoriteMovie[]): void {
   try {
-    window.localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites.filter(isFavoriteMovie).slice(0, MAX_FAVORITES)))
+    writeFavoritesAt(activeFavoritesKey, favorites)
     window.dispatchEvent?.(new Event(FAVORITES_CHANGED_EVENT))
   } catch {
     // Storage can be unavailable or full; favorites are optional local state.
@@ -48,7 +93,7 @@ export function saveFavorites(favorites: FavoriteMovie[]): void {
 
 export function subscribeToFavorites(listener: () => void): () => void {
   const handleStorage = (event: StorageEvent) => {
-    if (event.key === null || event.key === FAVORITES_KEY) {
+    if (event.key === null || event.key === activeFavoritesKey) {
       listener()
     }
   }

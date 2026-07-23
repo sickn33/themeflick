@@ -1,6 +1,15 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { FAVORITES_CHANGED_EVENT, readFavorites, saveFavorites, toggleFavorite } from './favorites'
+import {
+  activateAccountFavorites,
+  activateDeviceFavorites,
+  clearDeviceFavorites,
+  FAVORITES_CHANGED_EVENT,
+  readDeviceFavorites,
+  readFavorites,
+  saveFavorites,
+  toggleFavorite,
+} from './favorites'
 
 const store = new Map<string, string>()
 const dispatchedEvents: string[] = []
@@ -16,6 +25,9 @@ beforeEach(() => {
         setItem: (key: string, value: string) => {
           store.set(key, value)
         },
+        removeItem: (key: string) => {
+          store.delete(key)
+        },
       },
       dispatchEvent: (event: Event) => {
         dispatchedEvents.push(event.type)
@@ -23,6 +35,8 @@ beforeEach(() => {
       },
     },
   })
+  activateDeviceFavorites()
+  dispatchedEvents.length = 0
 })
 
 describe('favorites storage', () => {
@@ -67,5 +81,19 @@ describe('favorites storage', () => {
 
     expect(readFavorites()).toEqual([newest, first])
     expect(dispatchedEvents).toEqual([FAVORITES_CHANGED_EVENT, FAVORITES_CHANGED_EVENT])
+  })
+
+  it('keeps anonymous device favorites separate from an authenticated account cache', () => {
+    const deviceFavorite = { id: 1, title: 'Device', poster_path: null, release_date: null, vote_average: 8 }
+    const accountFavorite = { id: 2, title: 'Account', poster_path: null, release_date: null, vote_average: 9 }
+    saveFavorites([deviceFavorite])
+
+    activateAccountFavorites('viewer@example.com', [accountFavorite])
+
+    expect(readFavorites()).toEqual([accountFavorite])
+    expect(readDeviceFavorites()).toEqual([deviceFavorite])
+    clearDeviceFavorites()
+    expect(readDeviceFavorites()).toEqual([])
+    expect(readFavorites()).toEqual([accountFavorite])
   })
 })

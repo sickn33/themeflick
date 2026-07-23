@@ -2,6 +2,31 @@ interface Env {
   ASSETS: { fetch(request: Request): Promise<Response> }
   TMDB_API_KEY?: string
   TMDB_ACCESS_TOKEN?: string
+  DB?: D1Database
+}
+
+interface D1PreparedStatement {
+  bind(...values: unknown[]): D1PreparedStatement
+  all<T>(): Promise<{ results: T[] }>
+  run(): Promise<unknown>
+}
+
+interface D1Database {
+  prepare(query: string): D1PreparedStatement
+  batch(statements: D1PreparedStatement[]): Promise<unknown>
+}
+
+type AuthenticatedUser = {
+  email: string
+  displayName: string
+}
+
+type FavoriteRecord = {
+  id: number
+  title: string
+  poster_path: string | null
+  release_date: string | null
+  vote_average: number
 }
 
 type AllowedRoute = {
@@ -12,6 +37,10 @@ type AllowedRoute = {
 
 const TMDB_ORIGIN = 'https://api.themoviedb.org/3'
 const TMDB_TIMEOUT_MS = 10_000
+const USER_EMAIL_HEADER = 'oai-authenticated-user-email'
+const USER_FULL_NAME_HEADER = 'oai-authenticated-user-full-name'
+const USER_FULL_NAME_ENCODING_HEADER = 'oai-authenticated-user-full-name-encoding'
+const MAX_FAVORITES = 100
 
 const allowedRoutes: AllowedRoute[] = [
   { pattern: /^\/configuration$/, queryKeys: new Set(), ttl: 86_400 },
@@ -50,7 +79,186 @@ const allowedRoutes: AllowedRoute[] = [
 ]
 
 function jsonError(status: number, message: string): Response {
-  return Response.json({ error: { message } }, { status })
+  return privateJson({ error: { message } }, status)
+}
+
+function privateJson(value: unknown, status = 200): Response {
+  return Response.json(value, {
+    status,
+    headers: {
+      'cache-control': 'private, no-store',
+      'x-content-type-options': 'nosniff',
+      vary: [USER_EMAIL_HEADER, USER_FULL_NAME_HEADER].join(', '),
+    },
+  })
+}
+
+function decodeFullName(request: Request): string | null {
+  const encoded = request.headers.get(USER_FULL_NAME_HEADER)
+  if (!encoded || request.headers.get(USER_FULL_NAME_ENCODING_HEADER) !== 'percent-encoded-utf-8') return null
+  try {
+    const decoded = decodeURIComponent(encoded).trim()
+    return decoded.length > 0 && decoded.length <= 160 ? decoded : null
+  } catch {
+    return null
+  }
+}
+
+function getAuthenticatedUser(request: Request): AuthenticatedUser | null {
+  const email = request.headers.get(USER_EMAIL_HEADER)?.trim().toLowerCase()
+  if (!email || email.length > 254 || !email.includes('@')) return null
+  return { email, displayName: decodeFullName(request) ?? email }
+}
+
+function requireMutationRequest(request: Request): Response | null {
+  if (request.headers.get('x-themeflick-request') !== '1') {
+    return jsonError(403, 'Invalid application request')
+  }
+  const origin = request.headers.get('origin')
+  if (!origin || origin !== new URL(request.url).origin) {
+    return jsonError(403, 'Cross-origin writes are not allowed')
+  }
+  return null
+}
+
+function isFavoriteRecord(value: unknown): value is FavoriteRecord {
+  if (!value || typeof value !== 'object') return false
+  const movie = value as Record<string, unknown>
+  return (
+    typeof movie.id === 'number' &&
+    Number.isInteger(movie.id) &&
+    movie.id > 0 &&
+    typeof movie.title === 'string' &&
+    movie.title.trim().length > 0 &&
+    movie.title.length <= 160 &&
+    (movie.poster_path === null ||
+      (typeof movie.poster_path === 'string' && movie.poster_path.length <= 200 && movie.poster_path.startsWith('/'))) &&
+    (movie.release_date === null ||
+      (typeof movie.release_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(movie.release_date))) &&
+    typeof movie.vote_average === 'number' &&
+    Number.isFinite(movie.vote_average) &&
+    movie.vote_average >= 0 &&
+    movie.vote_average <= 10
+  )
+}
+
+function normalizeFavorites(value: unknown): FavoriteRecord[] | null {
+  if (!Array.isArray(value) || value.length > MAX_FAVORITES) return null
+  const deduplicated = new Map<number, FavoriteRecord>()
+  for (const favorite of value) {
+    if (!isFavoriteRecord(favorite)) return null
+    if (!deduplicated.has(favorite.id)) {
+      deduplicated.set(favorite.id, { ...favorite, title: favorite.title.trim() })
+    }
+  }
+  return [...deduplicated.values()]
+}
+
+async function readFavorites(db: D1Database, email: string): Promise<FavoriteRecord[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT movie_id AS id, title, poster_path, release_date, vote_average
+       FROM favorites
+       WHERE user_email = ?
+       ORDER BY sort_order ASC, movie_id DESC
+       LIMIT 100`,
+    )
+    .bind(email)
+    .all<FavoriteRecord>()
+  return results
+}
+
+function favoriteUpsert(
+  db: D1Database,
+  email: string,
+  favorite: FavoriteRecord,
+  sortOrder: number,
+): D1PreparedStatement {
+  return db
+    .prepare(
+      `INSERT INTO favorites
+        (user_email, movie_id, title, poster_path, release_date, vote_average, sort_order, saved_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(user_email, movie_id) DO UPDATE SET
+        title = excluded.title,
+        poster_path = excluded.poster_path,
+        release_date = excluded.release_date,
+        vote_average = excluded.vote_average,
+        sort_order = excluded.sort_order`,
+    )
+    .bind(
+      email,
+      favorite.id,
+      favorite.title,
+      favorite.poster_path,
+      favorite.release_date,
+      favorite.vote_average,
+      sortOrder,
+    )
+}
+
+async function handleAccountApi(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url)
+  const user = getAuthenticatedUser(request)
+
+  if (url.pathname === '/api/account' && request.method === 'GET') {
+    return privateJson(
+      user
+        ? { authenticated: true, displayName: user.displayName, email: user.email }
+        : { authenticated: false, displayName: null, email: null },
+    )
+  }
+
+  if (!user) return jsonError(401, 'Sign in with ChatGPT to continue')
+  if (!env.DB) return jsonError(503, 'Favorite sync is not configured')
+
+  if (url.pathname === '/api/favorites' && request.method === 'GET') {
+    return privateJson({ favorites: await readFavorites(env.DB, user.email) })
+  }
+
+  if (
+    (url.pathname === '/api/favorites/sync' || url.pathname === '/api/favorites/import') &&
+    request.method === 'POST'
+  ) {
+    const invalidRequest = requireMutationRequest(request)
+    if (invalidRequest) return invalidRequest
+    if (request.headers.get('content-type')?.split(';', 1)[0] !== 'application/json') {
+      return jsonError(415, 'JSON content type is required')
+    }
+    let payload: { favorites?: unknown }
+    try {
+      payload = (await request.json()) as { favorites?: unknown }
+    } catch {
+      return jsonError(400, 'Invalid JSON payload')
+    }
+    const favorites = normalizeFavorites(payload.favorites)
+    if (!favorites) {
+      return jsonError(400, 'Invalid favorites payload')
+    }
+
+    const statements = favorites.map((favorite, index) => favoriteUpsert(env.DB!, user.email, favorite, index))
+    if (url.pathname === '/api/favorites/sync') {
+      statements.unshift(env.DB.prepare('DELETE FROM favorites WHERE user_email = ?').bind(user.email))
+    }
+    if (statements.length > 0) await env.DB.batch(statements)
+    return privateJson({ favorites: await readFavorites(env.DB, user.email) })
+  }
+
+  if (url.pathname === '/api/account/data' && request.method === 'DELETE') {
+    const invalidRequest = requireMutationRequest(request)
+    if (invalidRequest) return invalidRequest
+    await env.DB.prepare('DELETE FROM favorites WHERE user_email = ?').bind(user.email).run()
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'cache-control': 'private, no-store',
+        'x-content-type-options': 'nosniff',
+        vary: USER_EMAIL_HEADER,
+      },
+    })
+  }
+
+  return jsonError(404, 'Account route not found')
 }
 
 function hasValidValue(key: string, value: string): boolean {
@@ -136,6 +344,13 @@ const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
     if (url.pathname.startsWith('/api/tmdb/')) return proxyTmdb(request, env)
+    if (url.pathname.startsWith('/api/account') || url.pathname.startsWith('/api/favorites')) {
+      try {
+        return await handleAccountApi(request, env)
+      } catch {
+        return jsonError(500, 'Account data is temporarily unavailable')
+      }
+    }
 
     const asset = await env.ASSETS.fetch(request)
     if (!asset.headers.get('content-type')?.includes('text/html')) return asset
@@ -143,6 +358,7 @@ const worker = {
     const headers = new Headers(asset.headers)
     headers.set('x-content-type-options', 'nosniff')
     headers.set('referrer-policy', 'strict-origin-when-cross-origin')
+    headers.set('permissions-policy', 'camera=(), microphone=(), geolocation=()')
     const html = (await asset.text()).replaceAll('__THEMEFLICK_ORIGIN__', url.origin)
     return new Response(html, { status: asset.status, statusText: asset.statusText, headers })
   },

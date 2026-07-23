@@ -15,9 +15,11 @@
     "benchmark:production": "node --experimental-strip-types benchmark-production.ts",
     "generate:tag-signatures": "node --experimental-strip-types generate-tag-signatures.ts",
     "preview": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vite preview",
-    "smoke:local": "node scripts/smoke-local.mjs"
+    "smoke:local": "node scripts/smoke-local.mjs",
+    "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "drizzle-orm": "^0.45.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.18.0"
@@ -29,6 +31,7 @@
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
+    "drizzle-kit": "^0.31.10",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
