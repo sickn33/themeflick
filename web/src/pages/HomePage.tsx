@@ -314,6 +314,7 @@ export function HomePage() {
               <input
                 id="movie-search"
                 type="text"
+                maxLength={100}
                 value={query}
                 onChange={(event) => {
                   requestIdRef.current += 1

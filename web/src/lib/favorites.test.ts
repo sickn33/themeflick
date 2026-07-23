@@ -88,7 +88,7 @@ describe('favorites storage', () => {
     const accountFavorite = { id: 2, title: 'Account', poster_path: null, release_date: null, vote_average: 9 }
     saveFavorites([deviceFavorite])
 
-    activateAccountFavorites('viewer@example.com', [accountFavorite])
+    activateAccountFavorites('opaque-storage-scope', [accountFavorite])
 
     expect(readFavorites()).toEqual([accountFavorite])
     expect(readDeviceFavorites()).toEqual([deviceFavorite])

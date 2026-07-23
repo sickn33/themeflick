@@ -5,7 +5,7 @@ import {
   getAccount,
   getCloudFavorites,
   importCloudFavorites,
-  replaceCloudFavorites,
+  sendFavoriteMutation,
   signInPath,
   signOutPath,
 } from './account'
@@ -19,16 +19,16 @@ describe('account API client', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(Response.json({ authenticated: true, displayName: 'Ada', email: 'ada@example.com' }))
-      .mockResolvedValueOnce(Response.json({ favorites: [] }))
+      .mockResolvedValueOnce(Response.json({ favorites: [], storageScope: 'scope', generation: 'generation', revision: 0 }))
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(getAccount()).resolves.toMatchObject({ authenticated: true, displayName: 'Ada' })
-    await expect(getCloudFavorites()).resolves.toEqual([])
+    await expect(getCloudFavorites()).resolves.toMatchObject({ favorites: [], storageScope: 'scope' })
     expect(fetchMock.mock.calls[0][0]).toBe('/api/account')
     expect(fetchMock.mock.calls[1][0]).toBe('/api/favorites')
   })
 
-  it('uses separate explicit import and replacement mutations', async () => {
+  it('uses explicit import and incremental mutations', async () => {
     const favorite = { id: 603, title: 'The Matrix', poster_path: null, release_date: '1999-03-30', vote_average: 8.2 }
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       void input
@@ -37,14 +37,14 @@ describe('account API client', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    await importCloudFavorites([favorite])
-    await replaceCloudFavorites([favorite])
+    await importCloudFavorites('11111111-1111-4111-8111-111111111111', [favorite])
+    await sendFavoriteMutation({ operationId: '22222222-2222-4222-8222-222222222222', generation: '11111111-1111-4111-8111-111111111111', action: 'put', favorite })
 
     const calls = fetchMock.mock.calls as Array<[RequestInfo | URL, RequestInit | undefined]>
-    expect(calls.map(([path]) => path)).toEqual(['/api/favorites/import', '/api/favorites/sync'])
+    expect(calls.map(([path]) => path)).toEqual(['/api/favorites/import', '/api/favorites/mutation'])
     for (const [, init] of calls) {
       expect(new Headers(init?.headers).get('x-themeflick-request')).toBe('1')
-      expect(JSON.parse(String(init?.body))).toEqual({ favorites: [favorite] })
+      expect(JSON.parse(String(init?.body))).toMatchObject({ generation: '11111111-1111-4111-8111-111111111111' })
     }
   })
 
@@ -52,7 +52,7 @@ describe('account API client', () => {
     const fetchMock = vi.fn(async () => new Response(null, { status: 204 }))
     vi.stubGlobal('fetch', fetchMock)
 
-    await deleteCloudData()
+    await deleteCloudData('11111111-1111-4111-8111-111111111111')
 
     expect(fetchMock).toHaveBeenCalledWith('/api/account/data', expect.objectContaining({ method: 'DELETE' }))
   })

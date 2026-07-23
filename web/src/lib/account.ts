@@ -1,91 +1,76 @@
 import type { FavoriteMovie } from '../types'
 
-export type Account = {
-  authenticated: boolean
-  displayName: string | null
-  email: string | null
-}
-
+export type Account = { authenticated: boolean; displayName: string | null; email: string | null }
 export type SyncState = 'checking' | 'local' | 'syncing' | 'synced' | 'error'
-
-const MUTATION_HEADERS = {
-  'content-type': 'application/json',
-  'x-themeflick-request': '1',
+export type FavoriteState = {
+  favorites: FavoriteMovie[]
+  storageScope: string
+  generation: string
+  revision: number
 }
+export type FavoriteMutation = {
+  operationId: string
+  generation: string
+  action: 'put' | 'remove'
+  favorite?: FavoriteMovie
+  movieId?: number
+}
+
+const MUTATION_HEADERS = { 'content-type': 'application/json', 'x-themeflick-request': '1' }
 
 async function parseJson<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    throw new Error(`Account request failed (${response.status})`)
-  }
+  if (!response.ok) throw new Error(`Account request failed (${response.status})`)
   return (await response.json()) as T
 }
 
 export async function getAccount(): Promise<Account> {
-  const response = await fetch('/api/account', { credentials: 'same-origin' })
-  return parseJson<Account>(response)
+  return parseJson<Account>(await fetch('/api/account', { credentials: 'same-origin' }))
 }
 
-export async function getCloudFavorites(): Promise<FavoriteMovie[]> {
-  const response = await fetch('/api/favorites', { credentials: 'same-origin' })
-  const payload = await parseJson<{ favorites: FavoriteMovie[] }>(response)
-  return payload.favorites
+export async function getCloudFavorites(): Promise<FavoriteState> {
+  return parseJson<FavoriteState>(await fetch('/api/favorites', { credentials: 'same-origin' }))
 }
 
-async function sendFavorites(path: string, favorites: FavoriteMovie[]): Promise<FavoriteMovie[]> {
-  const response = await fetch(path, {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: MUTATION_HEADERS,
-    body: JSON.stringify({ favorites }),
-  })
-  const payload = await parseJson<{ favorites: FavoriteMovie[] }>(response)
-  return payload.favorites
+export async function sendFavoriteMutation(mutation: FavoriteMutation): Promise<FavoriteState> {
+  return parseJson<FavoriteState>(await fetch('/api/favorites/mutation', {
+    method: 'POST', credentials: 'same-origin', headers: MUTATION_HEADERS, body: JSON.stringify(mutation),
+  }))
 }
 
-export function replaceCloudFavorites(favorites: FavoriteMovie[]): Promise<FavoriteMovie[]> {
-  return sendFavorites('/api/favorites/sync', favorites)
+export async function importCloudFavorites(generation: string, favorites: FavoriteMovie[]): Promise<FavoriteState> {
+  return parseJson<FavoriteState>(await fetch('/api/favorites/import', {
+    method: 'POST', credentials: 'same-origin', headers: MUTATION_HEADERS,
+    body: JSON.stringify({ operationId: crypto.randomUUID(), generation, favorites }),
+  }))
 }
 
-export async function importCloudFavorites(favorites: FavoriteMovie[]): Promise<FavoriteMovie[]> {
-  const response = await fetch('/api/favorites/import', {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: MUTATION_HEADERS,
-    body: JSON.stringify({ favorites }),
-  })
-  const payload = await parseJson<{ favorites: FavoriteMovie[] }>(response)
-  return payload.favorites
-}
-
-export async function deleteCloudData(): Promise<void> {
+export async function deleteCloudData(generation: string): Promise<void> {
   const response = await fetch('/api/account/data', {
-    method: 'DELETE',
-    credentials: 'same-origin',
-    headers: { 'x-themeflick-request': '1' },
+    method: 'DELETE', credentials: 'same-origin', headers: MUTATION_HEADERS, body: JSON.stringify({ generation }),
   })
-  if (!response.ok) {
-    throw new Error(`Account deletion failed (${response.status})`)
-  }
+  if (!response.ok) throw new Error(`Account deletion failed (${response.status})`)
 }
 
-export function signInPath(returnTo = '/'): string {
-  const safeReturnTo = safeRelativeReturnTo(returnTo)
-  return `/signin-with-chatgpt?return_to=${encodeURIComponent(safeReturnTo)}`
+export async function downloadCloudData(): Promise<void> {
+  const response = await fetch('/api/account/export', { credentials: 'same-origin' })
+  if (!response.ok) throw new Error(`Account export failed (${response.status})`)
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = `themeflick-export-${new Date().toISOString().slice(0, 10)}.json`
+  anchor.click()
+  URL.revokeObjectURL(url)
 }
 
-export function signOutPath(returnTo = '/'): string {
-  const safeReturnTo = safeRelativeReturnTo(returnTo)
-  return `/signout-with-chatgpt?return_to=${encodeURIComponent(safeReturnTo)}`
-}
+export function signInPath(returnTo = '/'): string { return `/signin-with-chatgpt?return_to=${encodeURIComponent(safeRelativeReturnTo(returnTo))}` }
+export function signOutPath(returnTo = '/'): string { return `/signout-with-chatgpt?return_to=${encodeURIComponent(safeRelativeReturnTo(returnTo))}` }
 
 function safeRelativeReturnTo(returnTo: string): string {
   if (!returnTo.startsWith('/') || returnTo.startsWith('//')) return '/'
   try {
     const url = new URL(returnTo, 'https://themeflick.local')
-    if (url.origin !== 'https://themeflick.local') return '/'
-    if (['/signin-with-chatgpt', '/signout-with-chatgpt', '/callback'].includes(url.pathname)) return '/'
+    if (url.origin !== 'https://themeflick.local' || ['/signin-with-chatgpt', '/signout-with-chatgpt', '/callback'].includes(url.pathname)) return '/'
     return `${url.pathname}${url.search}${url.hash}`
-  } catch {
-    return '/'
-  }
+  } catch { return '/' }
 }

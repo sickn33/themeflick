@@ -16,7 +16,11 @@
     "generate:tag-signatures": "node --experimental-strip-types generate-tag-signatures.ts",
     "preview": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vite preview",
     "smoke:local": "node scripts/smoke-local.mjs",
-    "db:generate": "drizzle-kit generate"
+    "smoke:production": "node scripts/smoke-production.mjs",
+    "db:generate": "drizzle-kit generate",
+    "db:check": "node scripts/check-schema-drift.mjs",
+    "db:validate": "node scripts/validate-migrations.mjs",
+    "check": "npm run lint && npm run test && npm run db:check && npm run db:validate && npm run build"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",

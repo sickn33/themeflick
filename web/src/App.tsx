@@ -1,14 +1,15 @@
-import { useEffect, useState } from 'react'
-import { Link, NavLink, Route, Routes } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 
 import { getHealth } from './api'
 import {
   deleteCloudData,
+  downloadCloudData,
   getAccount,
   getCloudFavorites,
   importCloudFavorites,
-  replaceCloudFavorites,
   signInPath,
+  signOutPath,
   type Account,
   type SyncState,
 } from './lib/account'
@@ -18,22 +19,28 @@ import {
   clearDeviceFavorites,
   readDeviceFavorites,
   readFavorites,
-  saveFavorites,
   subscribeToFavorites,
 } from './lib/favorites'
+import { FavoriteSync } from './lib/favoriteSync'
 import { AccountPage } from './pages/AccountPage'
 import { FavoritesPage } from './pages/FavoritesPage'
 import { HomePage } from './pages/HomePage'
 import { MovieDetailsPage } from './pages/MovieDetailsPage'
+import { AboutPage, PrivacyPage, SupportPage, TermsPage } from './pages/LegalPages'
+import { SiteFooter } from './components/SiteFooter'
+import { RouteMetadata } from './components/RouteMetadata'
 import './App.css'
 
 function App() {
+  const location = useLocation()
   const [serviceStatus, setServiceStatus] = useState<'checking' | 'online' | 'offline'>('checking')
   const [favoriteCount, setFavoriteCount] = useState(() => readFavorites().length)
   const [account, setAccount] = useState<Account>({ authenticated: false, displayName: null, email: null })
   const [syncState, setSyncState] = useState<SyncState>('checking')
   const [cloudReady, setCloudReady] = useState(false)
+  const [generation, setGeneration] = useState<string | null>(null)
   const [deviceFavoriteCount, setDeviceFavoriteCount] = useState(() => readDeviceFavorites().length)
+  const syncRef = useRef<FavoriteSync | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -71,14 +78,16 @@ function App() {
           return
         }
 
-        activateAccountFavorites(currentAccount.email)
         setSyncState('syncing')
-        const cloudFavorites = await getCloudFavorites()
+        const cloudState = await getCloudFavorites()
         if (cancelled) return
-        activateAccountFavorites(currentAccount.email, cloudFavorites)
+        activateAccountFavorites(cloudState.storageScope, cloudState.favorites)
+        setGeneration(cloudState.generation)
+        syncRef.current = new FavoriteSync(cloudState, setSyncState)
         setDeviceFavoriteCount(readDeviceFavorites().length)
         setCloudReady(true)
         setSyncState('synced')
+        void syncRef.current.drain()
       } catch {
         if (!cancelled) setSyncState('error')
       }
@@ -98,34 +107,17 @@ function App() {
 
   useEffect(() => {
     if (!cloudReady || !account.authenticated) return
-    let timer: number | undefined
-    let cancelled = false
-    const unsubscribe = subscribeToFavorites(() => {
-      window.clearTimeout(timer)
-      setSyncState('syncing')
-      timer = window.setTimeout(async () => {
-        try {
-          await replaceCloudFavorites(readFavorites())
-          if (!cancelled) setSyncState('synced')
-        } catch {
-          if (!cancelled) setSyncState('error')
-        }
-      }, 250)
-    })
-    return () => {
-      cancelled = true
-      window.clearTimeout(timer)
-      unsubscribe()
-    }
+    return subscribeToFavorites((change) => { if (change) syncRef.current?.enqueue(change) })
   }, [account.authenticated, cloudReady])
 
   async function importDeviceFavorites() {
     const deviceFavorites = readDeviceFavorites()
-    if (deviceFavorites.length === 0 || !account.email) return
+    if (deviceFavorites.length === 0 || !generation) return
     setSyncState('syncing')
     try {
-      const favorites = await importCloudFavorites(deviceFavorites)
-      activateAccountFavorites(account.email, favorites)
+      const state = await importCloudFavorites(generation, deviceFavorites)
+      activateAccountFavorites(state.storageScope, state.favorites)
+      setGeneration(state.generation)
       clearDeviceFavorites()
       setDeviceFavoriteCount(0)
       setSyncState('synced')
@@ -136,10 +128,11 @@ function App() {
   }
 
   async function deleteAccountData() {
+    if (!generation) throw new Error('Cloud state unavailable')
     try {
-      await deleteCloudData()
-      saveFavorites([])
-      setSyncState('synced')
+      await deleteCloudData(generation)
+      syncRef.current?.clear()
+      window.location.assign(signOutPath('/'))
     } catch (error) {
       setSyncState('error')
       throw error
@@ -148,6 +141,8 @@ function App() {
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">Skip to content</a>
+      <RouteMetadata pathname={location.pathname} />
       <header className="topbar">
         <div className="brand-wrap">
           <p className="brand-mark">Recommendation studio</p>
@@ -181,7 +176,7 @@ function App() {
         </div>
       </header>
 
-      <div className="route-shell">
+      <div className="route-shell" id="main-content" tabIndex={-1}>
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/favorites" element={<FavoritesPage />} />
@@ -193,11 +188,17 @@ function App() {
                 syncState={syncState}
                 deviceFavoriteCount={deviceFavoriteCount}
                 onDeleteData={deleteAccountData}
+                onDownloadData={downloadCloudData}
                 onImportDeviceFavorites={importDeviceFavorites}
+                onRetrySync={() => syncRef.current?.drain()}
               />
             }
           />
           <Route path="/movies/:id" element={<MovieDetailsPage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/support" element={<SupportPage />} />
           <Route
             path="*"
             element={
@@ -214,6 +215,7 @@ function App() {
           />
         </Routes>
       </div>
+      <SiteFooter />
     </div>
   )
 }

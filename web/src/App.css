@@ -519,6 +519,30 @@
 
 .import-panel p { margin: 0; color: var(--ivory-soft); }
 
+.account-disclosure { max-width: 64ch; overflow-wrap: anywhere; }
+
+.site-footer {
+  padding: 2rem clamp(1.25rem, 4vw, 3.75rem);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.8rem 2rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.site-footer nav { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: end; }
+.site-footer a { color: var(--ivory-soft); text-decoration: underline; text-underline-offset: 0.2em; }
+.tmdb-notice { grid-column: 1 / -1; max-width: 84ch; }
+.legal-page { min-height: 60svh; }
+.legal-page > p, .legal-page > h2 { max-width: 76ch; }
+.legal-page > p { margin: 0 0 1rem; color: var(--ivory-soft); }
+.legal-page > h2 { margin: 2rem 0 0.6rem; color: var(--ivory); font-size: 1.8rem; }
+.legal-page a { color: var(--accent-soft); text-decoration: underline; }
+.preview-warning { padding: 1rem; border: 1px solid var(--danger); color: var(--danger) !important; }
+.tmdb-logo-link { display: inline-block; margin-bottom: 1rem; }
+.tmdb-logo { display: block; width: 74px; height: auto; }
+
 /* Search disambiguation components intentionally support a few semantic class names. */
 .search-candidates,
 .search-result-list,
@@ -629,6 +653,8 @@
   .details-backdrop::after { background: linear-gradient(0deg, var(--canvas) 8%, rgb(8 10 11 / 55%) 68%, rgb(8 10 11 / 18%)); }
   .details-content h1 { font-size: clamp(3.4rem, 17vw, 5.2rem); }
   .search-candidates, .search-result-list, .movie-picker-grid { grid-template-columns: 1fr; }
+  .site-footer { grid-template-columns: 1fr; }
+  .site-footer nav { justify-content: start; }
 }
 
 @media (max-width: 390px) {

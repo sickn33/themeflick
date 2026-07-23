@@ -75,6 +75,7 @@ export function MovieCard({
           <button
             className={`button ${isFavorite ? 'button-favorite' : 'button-primary'}`}
             type="button"
+            aria-pressed={isFavorite}
             onClick={onToggleFavorite}
             aria-label={`${isFavorite ? 'Unsave' : 'Save'} ${title}`}
           >

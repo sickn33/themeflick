@@ -196,6 +196,7 @@ export function MovieDetailsPage() {
 
           <button
             type="button"
+            aria-pressed={isFavorite(movie.id)}
             className={`button ${isFavorite(movie.id) ? 'button-favorite' : 'button-primary'}`}
             onClick={() => {
               const saved = toggleFavorite(toFavorite(movie))

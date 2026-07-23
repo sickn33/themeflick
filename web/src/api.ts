@@ -462,8 +462,8 @@ function minSourceRank(left: number | null, right: number | null): number | null
   return Math.min(left, right)
 }
 
-const CANDIDATE_DETAIL_LIMIT = 100
-const DETAIL_FETCH_CONCURRENCY = 8
+const CANDIDATE_DETAIL_LIMIT = 30
+const DETAIL_FETCH_CONCURRENCY = 4
 
 export function selectRecommendationCandidates(
   candidates: CandidateMovie[],
@@ -677,7 +677,7 @@ export async function getMovieRecommendations(movieId: number): Promise<Recommen
   ])
 
   const directorId = basePayload.credits?.crew?.find((member) => member.job === 'Director')?.id
-  const discoveryKeywordIds = extractKeywordIds(basePayload).slice(0, 8)
+  const discoveryKeywordIds = extractKeywordIds(basePayload).slice(0, 4)
   const discoveryParams = {
     language: 'en-US',
     include_adult: 'false',
@@ -690,7 +690,7 @@ export async function getMovieRecommendations(movieId: number): Promise<Recommen
     ? await Promise.all([
         tmdbJson<TmdbListResponse>('/discover/movie', { ...discoveryParams, page: '1' }).catch(() => ({ results: [] })),
         tmdbJson<TmdbListResponse>('/discover/movie', { ...discoveryParams, page: '2' }).catch(() => ({ results: [] })),
-        ...discoveryKeywordIds.slice(0, 6).map((keywordId) =>
+        ...discoveryKeywordIds.slice(0, 3).map((keywordId) =>
           tmdbJson<TmdbListResponse>('/discover/movie', {
             language: 'en-US',
             include_adult: 'false',

@@ -8,7 +8,9 @@ type AccountPageProps = {
   syncState: SyncState
   deviceFavoriteCount: number
   onDeleteData: () => Promise<void>
+  onDownloadData: () => Promise<void>
   onImportDeviceFavorites: () => Promise<void>
+  onRetrySync: () => void
 }
 
 function syncMessage(syncState: SyncState): string {
@@ -31,7 +33,9 @@ export function AccountPage({
   syncState,
   deviceFavoriteCount,
   onDeleteData,
+  onDownloadData,
   onImportDeviceFavorites,
+  onRetrySync,
 }: AccountPageProps) {
   const [deleting, setDeleting] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -77,6 +81,7 @@ export function AccountPage({
           <p className="account-kicker">Device-only mode</p>
           <h2>Keep your favorites wherever you watch.</h2>
           <p>{syncMessage(syncState)}</p>
+          <p className="account-disclosure">Signing in shares your ChatGPT account email and display name with Themeflick so favorites can sync. Review the Privacy notice before continuing.</p>
           <a className="button button-primary compact" href={signInPath('/account')}>
             Sign in with ChatGPT
           </a>
@@ -99,7 +104,13 @@ export function AccountPage({
               </button>
             </div>
           )}
+          {syncState === 'error' && (
+            <button className="button button-secondary" type="button" onClick={onRetrySync}>Retry sync</button>
+          )}
           <div className="account-actions">
+            <button className="button button-secondary" type="button" onClick={() => void onDownloadData()}>
+              Download my data
+            </button>
             <a className="button button-secondary" href={signOutPath('/')}>
               Sign out
             </a>
@@ -107,6 +118,7 @@ export function AccountPage({
               {deleting ? 'Deleting…' : 'Delete synced data'}
             </button>
           </div>
+          <p className="account-disclosure">Deleting Themeflick data removes the synced favorites held by this product. It does not delete or change your ChatGPT account.</p>
         </div>
       )}
 
