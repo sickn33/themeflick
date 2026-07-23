@@ -15,8 +15,8 @@
 
 ## Required human/operator gates before public access
 
-- [ ] Configure the real operator/data-controller identity with `VITE_LEGAL_CONTROLLER_NAME`.
-- [ ] Configure and monitor the privacy/support address with `VITE_LEGAL_CONTACT_EMAIL`.
+- [x] Configure the real operator/data-controller identity with `VITE_LEGAL_CONTROLLER_NAME`.
+- [ ] Configure the privacy/support address with `VITE_LEGAL_CONTACT_EMAIL`; confirm that the mailbox is actively monitored before public access.
 - [ ] Confirm whether intended use is non-commercial; obtain the appropriate TMDB commercial license before monetization or other commercial use.
 - [x] Verify the deployed Sites authentication boundary rejects client-supplied `oai-authenticated-user-*` headers before they reach the Worker.
 - [ ] Record a production D1 export/restore drill and monitoring owner.
