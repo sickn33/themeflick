@@ -444,7 +444,11 @@ const worker = {
         { headers: { 'content-type': 'application/xml; charset=utf-8' } },
       )
       else {
-        const asset = await env.ASSETS.fetch(request)
+        let asset = await env.ASSETS.fetch(request)
+        const lastSegment = url.pathname.split('/').pop() ?? ''
+        if (asset.status === 404 && request.method === 'GET' && !lastSegment.includes('.')) {
+          asset = await env.ASSETS.fetch(new Request(`${url.origin}/`, { headers: request.headers }))
+        }
         if (!asset.headers.get('content-type')?.includes('text/html')) response = asset
         else {
           const html = (await asset.text()).replaceAll('__THEMEFLICK_ORIGIN__', url.origin)

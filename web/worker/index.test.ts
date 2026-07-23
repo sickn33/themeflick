@@ -222,6 +222,19 @@ describe('TMDB Worker proxy', () => {
     expect(response.headers.get('x-frame-options')).toBe('DENY')
     expect(response.headers.get('content-security-policy')).toContain("frame-ancestors 'none'")
   })
+
+  it('serves the SPA shell for extensionless deep links when the asset binding returns 404', async () => {
+    const deepAssets = {
+      fetch: vi.fn(async (request: Request) => new URL(request.url).pathname === '/'
+        ? new Response('<main>Themeflick shell</main>', { headers: { 'content-type': 'text/html' } })
+        : new Response(null, { status: 404 })),
+    }
+    const response = await worker.fetch(new Request('https://themeflick.example/privacy'), { ASSETS: deepAssets })
+
+    expect(response.status).toBe(200)
+    await expect(response.text()).resolves.toContain('Themeflick shell')
+    expect(deepAssets.fetch).toHaveBeenCalledTimes(2)
+  })
 })
 
 describe('account and favorite APIs', () => {
