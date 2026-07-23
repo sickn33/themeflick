@@ -39,6 +39,9 @@ async function inspect(directory) {
     if (content.includes('VITE_TMDB_API_KEY') || content.includes('VITE_TMDB_ACCESS_TOKEN')) {
       throw new Error(`Legacy public TMDB credential reference found in build output: ${path}`)
     }
+    if (content.includes('VITE_LEGAL_CONTACT_EMAIL')) {
+      throw new Error(`Legacy public contact-email reference found in build output: ${path}`)
+    }
   }
 }
 

@@ -16,7 +16,7 @@
 ## Required human/operator gates before public access
 
 - [x] Configure the real operator/data-controller identity with `VITE_LEGAL_CONTROLLER_NAME`.
-- [ ] Configure the privacy/support address with `VITE_LEGAL_CONTACT_EMAIL`; confirm that the mailbox is actively monitored before public access.
+- [ ] Create and verify the free Formspree form, configure `VITE_FORMSPREE_FORM_ID`, and confirm that the destination mailbox is actively monitored.
 - [ ] Confirm whether intended use is non-commercial; obtain the appropriate TMDB commercial license before monetization or other commercial use.
 - [x] Verify the deployed Sites authentication boundary rejects client-supplied `oai-authenticated-user-*` headers before they reach the Worker.
 - [ ] Record a production D1 export/restore drill and monitoring owner.

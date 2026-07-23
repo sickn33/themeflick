@@ -29,7 +29,7 @@ Use the walkthrough for full setup and run steps:
 
 Production secrets are server-side Sites environment variables: `TMDB_ACCESS_TOKEN` (preferred) or `TMDB_API_KEY`. Never expose them through a `VITE_` variable. D1 is bound as `DB` by `web/.openai/hosting.json`.
 
-Before public access, set `VITE_LEGAL_CONTROLLER_NAME` to the real operator/controller identity and `VITE_LEGAL_CONTACT_EMAIL` to a monitored privacy/support address. The current fallback deliberately identifies the build as a private preview.
+Before public access, set `VITE_LEGAL_CONTROLLER_NAME` to the real operator/controller identity and `VITE_FORMSPREE_FORM_ID` to the verified free Formspree form ID whose target mailbox is actively monitored. The destination email address must not be placed in client-side environment variables. The current fallback deliberately identifies the build as a private preview.
 
 ## Verification
 From project root:

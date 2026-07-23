@@ -540,6 +540,18 @@
 .legal-page > h2 { margin: 2rem 0 0.6rem; color: var(--ivory); font-size: 1.8rem; }
 .legal-page a { color: var(--accent-soft); text-decoration: underline; }
 .preview-warning { padding: 1rem; border: 1px solid var(--danger); color: var(--danger) !important; }
+.contact-form { position: relative; max-width: 680px; margin: 1.5rem 0 2.5rem; display: grid; gap: 1rem; }
+.contact-field { display: grid; gap: 0.45rem; }
+.contact-field label, .contact-ack { color: var(--ivory); font-weight: 650; }
+.contact-field input, .contact-field select, .contact-field textarea { width: 100%; min-height: 48px; padding: 0.8rem 0.9rem; border: 1px solid var(--line-strong); border-radius: 0; color: var(--ivory); background: var(--surface); font: inherit; }
+.contact-field textarea { min-height: 170px; resize: vertical; }
+.contact-field input:focus, .contact-field select:focus, .contact-field textarea:focus { border-color: var(--accent-soft); }
+.contact-ack { display: flex; align-items: flex-start; gap: 0.7rem; font-size: 0.92rem; font-weight: 450; line-height: 1.5; }
+.contact-ack input { width: 20px; height: 20px; flex: 0 0 auto; margin-top: 0.1rem; accent-color: var(--accent-strong); }
+.contact-honeypot { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.contact-status { min-height: 1.5em; color: var(--ivory-soft); }
+.contact-status-error { color: var(--danger); }
+.contact-status-sent { color: var(--accent-soft); }
 .tmdb-logo-link { display: inline-block; margin-bottom: 1rem; }
 .tmdb-logo { display: block; width: 74px; height: auto; }
 
