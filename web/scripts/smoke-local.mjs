@@ -75,7 +75,7 @@ try {
   if (![root, deepLink, privacy, readiness, configuration, search].every((response) => response.ok)) {
     throw new Error(`Unexpected status: ${[root, deepLink, privacy, readiness, configuration, search].map((item) => item.status).join(', ')}`)
   }
-  if (!rootHtml.includes(`${origin}/og.png`) || !deepHtml.includes(`${origin}/og.png`)) {
+  if ([rootHtml, deepHtml].some((html) => html.includes('__THEMEFLICK_ORIGIN__') || !html.includes('https://themeflick.sickn33.chatgpt.site/og.png'))) {
     throw new Error('Absolute social image metadata was not rendered')
   }
   if (!configurationBody.images || !Array.isArray(searchBody.results) || searchBody.results.length === 0) {
