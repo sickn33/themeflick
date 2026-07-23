@@ -233,7 +233,7 @@ describe('TMDB Worker proxy', () => {
 
     expect(response.status).toBe(200)
     await expect(response.text()).resolves.toContain('Themeflick shell')
-    expect(deepAssets.fetch).toHaveBeenCalledTimes(2)
+    expect(deepAssets.fetch).toHaveBeenCalledTimes(3)
   })
 })
 

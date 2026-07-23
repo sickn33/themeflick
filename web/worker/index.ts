@@ -447,7 +447,9 @@ const worker = {
         let asset = await env.ASSETS.fetch(request)
         const lastSegment = url.pathname.split('/').pop() ?? ''
         if (asset.status === 404 && request.method === 'GET' && !lastSegment.includes('.')) {
-          asset = await env.ASSETS.fetch(new Request(`${url.origin}/`, { headers: request.headers }))
+          const shellRequest = (pathname: string) => new Request(`${url.origin}${pathname}`, { headers: request.headers })
+          asset = await env.ASSETS.fetch(shellRequest('/app.html'))
+          if (asset.status === 404) asset = await env.ASSETS.fetch(shellRequest('/'))
         }
         if (!asset.headers.get('content-type')?.includes('text/html')) response = asset
         else {

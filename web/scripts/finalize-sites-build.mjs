@@ -1,4 +1,4 @@
-import { access, readFile, readdir, rm } from 'node:fs/promises'
+import { access, readFile, readdir, rename, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 
 const root = new URL('../dist/', import.meta.url)
@@ -7,6 +7,10 @@ const required = ['server/index.js', 'client/index.html', '.openai/hosting.json'
 for (const relativePath of required) {
   await access(new URL(relativePath, root))
 }
+
+// Sites may serve a root index asset before invoking the Worker. Keep the SPA
+// shell under a non-index name so every document route receives Worker headers.
+await rename(new URL('client/index.html', root), new URL('client/app.html', root))
 
 const hosting = JSON.parse(await readFile(new URL('.openai/hosting.json', root), 'utf8'))
 if (hosting.d1) {
